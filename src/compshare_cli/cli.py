@@ -172,6 +172,7 @@ def instance_create(
     region: Annotated[str | None, typer.Option("--region")] = None,
     name: Annotated[str | None, typer.Option("--name")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm live instance creation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
@@ -194,7 +195,7 @@ def instance_create(
                     base_opts["region"] = options.region
                 if options.name:
                     base_opts["name"] = options.name
-                create_cmd = create_command_from_payload("instance create", {k: v for k, v in base_opts.items() if k != "dry-run"})
+                create_cmd = create_command_from_payload("instance create", {k: v for k, v in base_opts.items() if k != "dry-run"} | {"yes": True})
                 envelope = agent_envelope(
                     "instance_create",
                     "Previewed instance creation. No instance was created.",
@@ -209,6 +210,23 @@ def instance_create(
                 return
             print_json(payload) if json_output else typer.echo(payload)
             return
+        if not yes:
+            message = "instance create requires --yes for live creation"
+            if agent_output:
+                print_json(agent_envelope(
+                    "instance_create",
+                    message,
+                    {"request": payload},
+                    "cost-incurring",
+                    ok=False,
+                    warnings=[message],
+                    next_actions=["Run the dry-run command first, then ask the user for explicit approval before using --yes."],
+                ))
+            elif json_output:
+                print_json({"error": {"type": "ConfirmationRequired", "message": message, "hint": "Add --yes only after explicit user approval."}})
+            else:
+                typer.echo(message, err=True)
+            raise typer.Exit(1)
         response = get_client().invoke("CreateCompShareInstance", payload)
     except (CliError, ValueError) as error:
         handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)

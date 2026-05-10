@@ -116,6 +116,7 @@ def test_instance_create_calls_api(monkeypatch):
             "64",
             "--disk-size",
             "200",
+            "--yes",
         ],
     )
 
@@ -453,6 +454,7 @@ def test_instance_create_live_agent_outputs_created_ids(monkeypatch):
             "--disk-size",
             "200",
             "--agent",
+            "--yes",
         ],
     )
 
@@ -463,6 +465,40 @@ def test_instance_create_live_agent_outputs_created_ids(monkeypatch):
     assert "instance_ids" in payload["data"]
     assert payload["data"]["instance_ids"] == ["uhost-1"]
     assert any(call[0] == "CreateCompShareInstance" for call in fake.calls)
+
+
+def test_instance_create_live_agent_requires_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "create",
+            "--zone",
+            "cn-sh2-02",
+            "--image-id",
+            "compshareImage-xxx",
+            "--gpu-type",
+            "4090",
+            "--gpu",
+            "1",
+            "--cpu",
+            "16",
+            "--memory",
+            "64",
+            "--disk-size",
+            "200",
+            "--agent",
+        ],
+    )
+
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["cost_risk"] == "cost-incurring"
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "CreateCompShareInstance" for call in fake.calls)
 
 
 def test_instance_show_agent_outputs_detail_and_command(monkeypatch):

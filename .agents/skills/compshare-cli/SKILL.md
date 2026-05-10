@@ -36,6 +36,6 @@ These commands are read-only and safe to run without approval:
    `compshare resource capacity --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent`
 4. **Get approval** from user for the displayed price and capacity.
 5. **Create live instance** only after explicit approval:
-   `compshare instance create --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent`
+   `compshare instance create --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent --yes`
 
 Do not bypass the dry-run step or skip user approval when creating instances.
