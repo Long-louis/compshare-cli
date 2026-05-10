@@ -5,12 +5,13 @@ import json
 
 import typer
 
-from .config import ConfigStore, load_credentials, redact_secret
+from .config import ConfigStore, credential_source, load_credentials, redact_secret
 from .errors import CliError, MISSING_CREDENTIALS_MESSAGE
-from .output import print_json, print_table
+from .output import agent_envelope, command_suggestion, print_json, print_table, quiet_sdk_logs
 from .requests import CreateInstanceOptions, build_create_instance_request, resolve_zone_region
 from .sdk import CompShareClient
 
+quiet_sdk_logs()
 app = typer.Typer(help="CompShare GPU rental CLI.", no_args_is_help=True)
 config_app = typer.Typer(help="Manage local credentials.", no_args_is_help=True)
 resource_app = typer.Typer(help="Discover rentable CompShare resources.", no_args_is_help=True)
@@ -288,3 +289,59 @@ def resource_capacity(
     except (CliError, ValueError) as error:
         handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output)
     print_response(response, json_output)
+
+
+def normalize_zones(zones: list[dict]) -> list[dict[str, object]]:
+    return [{"region": z.get("Region", ""), "zone": z.get("Zone", ""), "name": z.get("Describe", "")} for z in zones]
+
+
+def normalize_instances(items: list[dict]) -> list[dict[str, object]]:
+    return [{"id": item.get("UHostId", ""), "name": item.get("Name", ""), "state": item.get("State", ""), "zone": item.get("Zone", "")} for item in items]
+
+
+@app.command("doctor")
+def doctor(
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Include debug info.")] = False,
+) -> None:
+    try:
+        credentials = load_credentials()
+        source = credential_source()
+        if credentials is None:
+            data = {"credentials": {"available": False, "source": source}}
+            commands = [command_suggestion("Configure API keys", "compshare config set-public-key <key> && compshare config set-private-key <key>", "sensitive", True)]
+            if agent_output:
+                envelope = agent_envelope("doctor", "Missing credentials", data, "none", ok=False, warnings=[], next_actions=["Run `compshare config set` to configure keys"], commands=commands, debug={"source": source} if debug else {})
+                print_json(envelope)
+            else:
+                print_json(data) if json_output else typer.echo("Missing credentials")
+            raise typer.Exit(1)
+
+        client = CompShareClient(credentials)
+        zones = client.support_zones()
+        instances_response = client.invoke("DescribeCompShareInstance", {})
+        zones_normalized = normalize_zones(zones)
+        instances_normalized = normalize_instances(instances_response.get("UHostSet", []))
+        data = {
+            "credentials": {"available": True, "source": source},
+            "api": {"reachable": True},
+            "zones": {"count": len(zones_normalized), "items": zones_normalized},
+            "instances": {"count": len(instances_normalized), "items": instances_normalized},
+        }
+        commands = [
+            command_suggestion("List available zones", "compshare resource zones", "safe", False),
+            command_suggestion("List your instances", "compshare instance list", "safe", False),
+        ]
+        if agent_output:
+            envelope = agent_envelope("doctor", "System check passed", data, "none", ok=True, warnings=[], next_actions=[], commands=commands, debug={"source": source} if debug else {})
+            print_json(envelope)
+        elif json_output:
+            print_json(data)
+        else:
+            typer.echo(f"Credentials: {source}")
+            typer.echo(f"API reachable: True")
+            typer.echo(f"Zones: {len(zones_normalized)}")
+            typer.echo(f"Instances: {len(instances_normalized)}")
+    except CliError as error:
+        handle_cli_error(error, json_output or agent_output)
