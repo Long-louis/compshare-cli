@@ -69,8 +69,8 @@ def get_client() -> CompShareClient:
     return CompShareClient(credentials)
 
 
-def handle_cli_error(error: CliError, json_output: bool) -> None:
-    if json_output:
+def handle_cli_error(error: CliError, json_output: bool, agent_output: bool = False) -> None:
+    if json_output or agent_output:
         print_json(error.to_json())
     else:
         typer.echo(error.message, err=True)
@@ -85,11 +85,23 @@ def print_response(response: dict, json_output: bool) -> None:
 
 
 @resource_app.command("zones")
-def resource_zones(json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
+def resource_zones(
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
     try:
         zones = get_client().support_zones()
     except CliError as error:
-        handle_cli_error(error, json_output)
+        handle_cli_error(error, json_output, agent_output)
+    normalized = normalize_zones(zones)
+    if agent_output:
+        commands = [
+            command_suggestion("List available zones", "compshare resource zones", "safe", False),
+            command_suggestion("Check instance types", f"compshare resource instance-types --zone {normalized[0]['zone'] if normalized else ''} --gpu-type 4090", "safe", False),
+        ]
+        envelope = agent_envelope("resource_zones", f"Found {len(normalized)} zones", {"zones": normalized}, "none", ok=True, warnings=[], next_actions=[], commands=commands)
+        print_json(envelope)
+        return
     if json_output:
         print_json({"ZoneInfo": zones})
         return
@@ -162,12 +174,48 @@ def price_create(
     disk_size: Annotated[int, typer.Option("--disk-size")],
     region: Annotated[str | None, typer.Option("--region")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
     try:
         options = make_create_options(zone, region, image_id, gpu_type, gpu, cpu, memory, disk_size, None)
         response = get_client().invoke("GetCompShareInstancePrice", build_create_instance_request(options))
     except (CliError, ValueError) as error:
-        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output)
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        base_opts = {
+            "zone": options.zone,
+            "image-id": options.image_id,
+            "gpu-type": options.gpu_type,
+            "gpu": options.gpu,
+            "cpu": options.cpu,
+            "memory": options.memory_gib,
+            "disk-size": options.disk_size_gib,
+        }
+        if options.region:
+            base_opts["region"] = options.region
+        capacity_cmd = create_command_from_payload("resource capacity", base_opts)
+        dry_run_cmd = create_command_from_payload("instance create", {**base_opts, "dry-run": True})
+        create_cmd = create_command_from_payload("instance create", base_opts)
+        commands = [
+            command_suggestion("Check capacity", capacity_cmd, "read-only", False),
+            command_suggestion("Dry-run instance creation", dry_run_cmd, "read-only", False),
+            command_suggestion("Create instance", create_cmd, "cost-incurring", True),
+        ]
+        warnings = []
+        if response.get("Price", 0) > 100:
+            warnings.append("High estimated cost")
+        envelope = agent_envelope(
+            "price_create",
+            f"Estimated price: {response.get('Price', 0)}",
+            {"request": options.__dict__, "price": response},
+            "may-incur-cost",
+            ok=True,
+            warnings=warnings,
+            next_actions=["Run capacity check before creating instance"],
+            commands=commands,
+        )
+        print_json(envelope)
+        return
     print_response(response, json_output)
 
 
@@ -293,6 +341,14 @@ def resource_capacity(
 
 def normalize_zones(zones: list[dict]) -> list[dict[str, object]]:
     return [{"region": z.get("Region", ""), "zone": z.get("Zone", ""), "name": z.get("Describe", "")} for z in zones]
+
+
+def create_command_from_payload(command_name: str, options: dict[str, object]) -> str:
+    parts = [command_name]
+    for key, value in options.items():
+        if value is not None:
+            parts.append(f"--{key.replace('_', '-')} {value}")
+    return "compshare " + " ".join(parts)
 
 
 def normalize_instances(items: list[dict]) -> list[dict[str, object]]:

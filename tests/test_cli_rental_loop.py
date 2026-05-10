@@ -298,3 +298,59 @@ def test_resource_capacity_calls_capacity_api(monkeypatch):
     assert result.exit_code == 0
     assert '"RetCode": 0' in result.stdout
     assert fake.calls[-1][0] == "CheckCompShareResourceCapacity"
+
+
+def test_resource_zones_agent_output(monkeypatch):
+    install_fake_client(monkeypatch)
+
+    result = runner.invoke(cli.app, ["resource", "zones", "--agent"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is True
+    assert data["command"] == "resource_zones"
+    assert "zones" in data["data"]
+    assert len(data["data"]["zones"]) == 2
+    assert data["data"]["zones"][0]["region"] == "cn-wlcb"
+    assert "commands" in data
+    assert any(c["label"] == "List available zones" for c in data["commands"])
+
+
+def test_price_create_agent_output_includes_cost_command(monkeypatch):
+    install_fake_client(monkeypatch)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "price",
+            "create",
+            "--agent",
+            "--zone",
+            "cn-sh2-02",
+            "--image-id",
+            "compshareImage-xxx",
+            "--gpu-type",
+            "4090",
+            "--gpu",
+            "1",
+            "--cpu",
+            "16",
+            "--memory",
+            "64",
+            "--disk-size",
+            "200",
+        ],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is True
+    assert data["command"] == "price_create"
+    assert data["cost_risk"] == "may-incur-cost"
+    commands = data["commands"]
+    assert any(c["label"] == "Check capacity" for c in commands)
+    assert any(c["label"] == "Dry-run instance creation" for c in commands)
+    assert any(c["label"] == "Create instance" for c in commands)
+    for cmd in commands:
+        assert "{" not in cmd["command"]
+        assert "}" not in cmd["command"]
