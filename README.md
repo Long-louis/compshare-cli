@@ -1,14 +1,38 @@
 # compshare-cli
 
-Python CLI for common CompShare GPU rental workflows.
+Python CLI for common [CompShare](https://www.compshare.cn/) GPU rental workflows.
+
+中文文档：[`README.zh-CN.md`](README.zh-CN.md)
 
 ## Install
 
+Install directly from a public Git repository:
+
 ```bash
-uv tool install .
+uv tool install git+https://github.com/Long-louis/compshare-cli.git
 ```
 
+For local development:
+
+```bash
+git clone https://github.com/Long-louis/compshare-cli.git
+cd compshare-cli
+uv sync
+uv run compshare --help
+```
+
+If you cloned a fork or another mirror, replace the Git URL with that repository URL.
+
 ## Credentials
+
+The CLI needs your CompShare `Public Key` and `Private Key`.
+
+To obtain them:
+
+1. Sign in to the [CompShare web console](https://www.compshare.cn/).
+2. Open the account/API key management page.
+3. Copy the platform-provided `Public Key` and `Private Key`.
+4. Configure them with environment variables or local CLI config.
 
 Use environment variables:
 
@@ -24,7 +48,7 @@ compshare config set public-key ...
 compshare config set private-key ...
 ```
 
-Environment variables override the local config file.
+Environment variables override the local config file. Keep the `Private Key` secret and do not paste it into chat logs, issues, or documentation.
 
 ## Discover Zones
 
@@ -47,6 +71,24 @@ compshare price create \
 
 ## Create Instance
 
+Inspect the request first without creating resources:
+
+```bash
+compshare instance create \
+  --zone cn-sh2-02 \
+  --image-id compshareImage-xxx \
+  --gpu-type 4090 \
+  --gpu 1 \
+  --cpu 16 \
+  --memory 64 \
+  --disk-size 200 \
+  --name my-gpu \
+  --dry-run \
+  --json
+```
+
+Live creation can incur cost and requires `--yes`:
+
 ```bash
 compshare instance create \
   --zone cn-sh2-02 \
@@ -60,27 +102,35 @@ compshare instance create \
   --yes
 ```
 
-Use `--dry-run --json` to inspect the request body without creating resources. Live creation requires `--yes` because it can incur cost.
-
 ## JSON Output
 
-Most commands accept `--json` for automation.
+Most commands accept `--json` for automation. JSON output is intended to be parseable stdout without SDK logs or human text.
 
 ## Agent Mode
 
-- Start with `compshare doctor --agent` to verify CLI is configured for automated use.
+- Start with `compshare doctor --agent` to verify CLI configuration and API reachability.
 - Output modes:
-  - Default: human-readable tables and progress
-  - `--json`: machine-readable output for scripts and automation
-  - `--agent`: optimized for AI agents (minimal decoration, stable JSON where applicable)
-  - `--agent --debug`: agent mode with additional debug information
-- Safety rules for risk values:
-  - `--risk=low`: read-only operations only
-  - `--risk=medium`: safe write operations (config, dry-run)
-  - `--risk=high`: cost-incurring operations require explicit approval via `--yes` flag or interactive confirmation
-- Typical agent flow commands:
+  - Default: human-readable tables and summaries.
+  - `--json`: machine-readable factual data for scripts.
+  - `--agent`: stable JSON envelope for code agents.
+  - `--agent --debug`: agent envelope with extra diagnostics.
+- Safety rules:
+  - `read-only` / `safe`: agent can run without confirmation.
+  - `cost-incurring`: requires explicit user approval and usually `--yes`.
+  - `destructive`: requires explicit user approval and `--yes`.
+  - `sensitive`: may expose or change secrets; requires explicit user approval.
+- Typical agent flow:
   1. `compshare doctor --agent`
   2. `compshare resource zones --agent`
   3. `compshare price create ... --agent`
-  4. `compshare instance create ... --dry-run --json --agent` (preview before live create)
-  5. `compshare instance create ... --agent --yes` (after approval)
+  4. `compshare instance create ... --dry-run --agent`
+  5. `compshare instance create ... --agent --yes` after explicit approval.
+
+## References
+
+- [CompShare operation examples](https://www.compshare.cn/docs/gpus/operationexample)
+- [CompShare Python SDK examples](https://github.com/ucloud/compshare-developer-examples/tree/main/python-sdk/compshare)
+
+## License
+
+[MIT](LICENSE)
