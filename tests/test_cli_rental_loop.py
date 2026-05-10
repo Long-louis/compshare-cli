@@ -428,3 +428,82 @@ def test_instance_create_dry_run_agent_does_not_create(monkeypatch):
     assert payload["data"]["dry_run"] is True
     assert fake.calls[-1][0] == "DescribeCompShareSupportZone"
     assert all(call[0] != "CreateCompShareInstance" for call in fake.calls)
+
+
+def test_instance_create_live_agent_outputs_created_ids(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "create",
+            "--zone",
+            "cn-sh2-02",
+            "--image-id",
+            "compshareImage-xxx",
+            "--gpu-type",
+            "4090",
+            "--gpu",
+            "1",
+            "--cpu",
+            "16",
+            "--memory",
+            "64",
+            "--disk-size",
+            "200",
+            "--agent",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["command"] == "instance_create"
+    assert payload["cost_risk"] == "cost-incurring"
+    assert "instance_ids" in payload["data"]
+    assert payload["data"]["instance_ids"] == ["uhost-1"]
+    assert any(call[0] == "CreateCompShareInstance" for call in fake.calls)
+
+
+def test_instance_show_agent_outputs_detail_and_command(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+
+    result = runner.invoke(cli.app, ["instance", "show", "uhost-1", "--agent"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["command"] == "instance_show"
+    assert payload["data"]["instance"]["id"] == "uhost-1"
+    assert payload["data"]["instance"]["state"] == "Stopped"
+    # Should have at least one safe follow-up command
+    assert len(payload.get("commands", [])) >= 1
+    assert any(cmd["risk"] == "safe" for cmd in payload["commands"])
+
+
+@pytest.mark.parametrize(
+    ("cmd", "action", "expected_risk"),
+    [
+        ("start", "StartCompShareInstance", "cost-incurring"),
+        ("stop", "StopCompShareInstance", "may-incur-cost"),
+        ("reboot", "RebootCompShareInstance", "may-incur-cost"),
+        ("delete", "TerminateCompShareInstance", "destructive"),
+    ],
+)
+def test_instance_lifecycle_agent_outputs(monkeypatch, cmd, action, expected_risk):
+    fake = install_fake_client(monkeypatch)
+
+    args = ["instance", cmd, "uhost-1", "--agent"]
+    if cmd == "delete":
+        args.append("--yes")
+
+    result = runner.invoke(cli.app, args)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["command"] == cmd
+    assert payload["cost_risk"] == expected_risk
+    assert payload["data"]["instance_id"] == "uhost-1"
+    assert any(call[0] == action for call in fake.calls)
+    # Should have a follow-up command (Show instance)
+    assert len(payload.get("commands", [])) >= 1
+    assert any(cmd_sug["label"] == f"Show instance" for cmd_sug in payload["commands"])

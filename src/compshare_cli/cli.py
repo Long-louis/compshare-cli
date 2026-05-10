@@ -323,6 +323,7 @@ def instance_show(
             {"instance": instances[0] if instances else {}},
             "read-only",
             ok=True,
+            commands=[command_suggestion("List instances", "compshare instance list --agent", "safe", False)],
         )
         print_json(envelope)
         return
@@ -339,7 +340,7 @@ def invoke_instance_action(action: str, instance_id: str, json_output: bool, age
             f"{command_name}",
             f"Requested {command_name} for instance {instance_id}.",
             {"instance_id": instance_id, "response": response},
-            "cost-incurring" if command_name in ["start", "reboot"] else "destructive" if command_name == "delete" else "safe",
+            "cost-incurring" if command_name == "start" else "may-incur-cost" if command_name in ["stop", "reboot"] else "destructive" if command_name == "delete" else "safe",
             ok=True,
             commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
         )
