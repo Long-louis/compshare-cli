@@ -64,3 +64,22 @@ Use `--dry-run --json` to inspect the request body without creating resources.
 ## JSON Output
 
 Most commands accept `--json` for automation.
+
+## Agent Mode
+
+- Start with `compshare doctor --agent` to verify CLI is configured for automated use.
+- Output modes:
+  - Default: human-readable tables and progress
+  - `--json`: machine-readable output for scripts and automation
+  - `--agent`: optimized for AI agents (minimal decoration, stable JSON where applicable)
+  - `--agent --debug`: agent mode with additional debug information
+- Safety rules for risk values:
+  - `--risk=low`: read-only operations only
+  - `--risk=medium`: safe write operations (config, dry-run)
+  - `--risk=high`: cost-incurring operations require explicit approval via `--yes` flag or interactive confirmation
+- Typical agent flow commands:
+  1. `compshare doctor --agent`
+  2. `compshare resource zones --agent`
+  3. `compshare price create ... --agent`
+  4. `compshare instance create ... --dry-run --json --agent` (preview before live create)
+  5. `compshare instance create ... --agent --yes` (after approval)
