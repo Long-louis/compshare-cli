@@ -21,6 +21,9 @@ compshare = "compshare:main"
 requires = ["uv_build>=0.10.12,<0.11.0"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+module-name = ["compshare", "compshare_cli"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
