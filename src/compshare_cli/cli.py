@@ -5,7 +5,7 @@ import json
 
 import typer
 
-from .config import ConfigStore, load_credentials
+from .config import ConfigStore, load_credentials, redact_secret
 from .errors import CliError, MISSING_CREDENTIALS_MESSAGE
 from .output import print_json, print_table
 from .requests import CreateInstanceOptions, build_create_instance_request, resolve_zone_region
@@ -40,7 +40,7 @@ def config_set(key: Annotated[str, typer.Argument()], value: Annotated[str, type
 @config_app.command("get")
 def config_get(json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
     data = ConfigStore().read()
-    safe = {key: ("***" if key == "private_key" and value else value) for key, value in data.items()}
+    safe = {key: redact_secret(value) for key, value in data.items()}
     if json_output:
         print_json(safe)
         return
