@@ -1,4 +1,5 @@
 .firecrawl/
+.worktrees/
 .opencode/ralph-loop.local.md
 .venv/
 __pycache__/
