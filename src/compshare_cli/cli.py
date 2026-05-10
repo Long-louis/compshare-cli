@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 import json
+import shlex
 
 import typer
 
@@ -207,7 +208,17 @@ def price_create(
         envelope = agent_envelope(
             "price_create",
             f"Estimated price: {response.get('Price', 0)}",
-            {"request": options.__dict__, "price": response},
+            {"request": {
+                "zone": options.zone,
+                "region": options.region,
+                "image_id": options.image_id,
+                "gpu_type": options.gpu_type,
+                "gpu": options.gpu,
+                "cpu": options.cpu,
+                "memory_gib": options.memory_gib,
+                "disk_size_gib": options.disk_size_gib,
+                "name": options.name,
+            }, "price": response},
             "may-incur-cost",
             ok=True,
             warnings=warnings,
@@ -347,7 +358,7 @@ def create_command_from_payload(command_name: str, options: dict[str, object]) -
     parts = [command_name]
     for key, value in options.items():
         if value is not None:
-            parts.append(f"--{key.replace('_', '-')} {value}")
+            parts.append(f"--{key.replace('_', '-')} {shlex.quote(str(value))}")
     return "compshare " + " ".join(parts)
 
 

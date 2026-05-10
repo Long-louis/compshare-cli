@@ -300,6 +300,33 @@ def test_resource_capacity_calls_capacity_api(monkeypatch):
     assert fake.calls[-1][0] == "CheckCompShareResourceCapacity"
 
 
+def test_create_command_from_payload_quotes_spaced_values():
+    from compshare_cli.cli import create_command_from_payload
+
+    options = {
+        "zone": "cn-sh2-02",
+        "image-id": "my test image",
+        "gpu-type": "4090",
+        "gpu": 1,
+        "cpu": 16,
+        "memory": 64,
+        "disk-size": 200,
+    }
+    cmd = create_command_from_payload("instance create", options)
+    # Should quote the value with spaces
+    assert "--image-id 'my test image'" in cmd or '--image-id "my test image"' in cmd
+    assert "my test image" in cmd
+    # Ensure no unquoted space in the middle
+    assert "my test image" not in cmd or cmd.count("my test image") == 1  # simple presence check
+    # Actually check that the command can be split safely
+    import shlex
+    parts = shlex.split(cmd)
+    # Verify that --image-id is followed by the quoted value as a single token
+    idx = parts.index("--image-id") if "--image-id" in parts else -1
+    assert idx != -1
+    assert parts[idx + 1] == "my test image"
+
+
 def test_resource_zones_agent_output(monkeypatch):
     install_fake_client(monkeypatch)
 
