@@ -1,0 +1,7 @@
+.firecrawl/
+.opencode/ralph-loop.local.md
+.venv/
+__pycache__/
+.pytest_cache/
+dist/
+*.egg-info/

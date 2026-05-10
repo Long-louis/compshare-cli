@@ -1,0 +1,27 @@
+[project]
+name = "compshare"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "geyulong", email = "geyvlong@stu.hit.edu.cn" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "platformdirs>=4.9.6",
+    "rich>=15.0.0",
+    "typer>=0.25.1",
+    "ucloud-sdk-python3>=0.11.97",
+]
+
+[project.scripts]
+compshare = "compshare:main"
+
+[build-system]
+requires = ["uv_build>=0.10.12,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
