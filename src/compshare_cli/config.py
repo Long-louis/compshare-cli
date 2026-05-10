@@ -46,6 +46,29 @@ class ConfigStore:
         self.write(data)
 
 
+def redact_secret(value: str | None) -> str:
+    if not value:
+        return ""
+    if len(value) <= 8:
+        return "***"
+    return f"{value[:4]}...{value[-4:]}"
+
+
+def credential_source(store: ConfigStore | None = None) -> str:
+    store = store or ConfigStore()
+    env_public = bool(os.getenv("COMPSHARE_PUBLIC_KEY"))
+    env_private = bool(os.getenv("COMPSHARE_PRIVATE_KEY"))
+    config_public = bool(store.get_value("public_key"))
+    config_private = bool(store.get_value("private_key"))
+    if env_public and env_private:
+        return "env"
+    if not env_public and not env_private and config_public and config_private:
+        return "config"
+    if (env_public or config_public) and (env_private or config_private):
+        return "mixed"
+    return "missing"
+
+
 def load_credentials(store: ConfigStore | None = None) -> Credentials | None:
     store = store or ConfigStore()
     public_key = os.getenv("COMPSHARE_PUBLIC_KEY") or store.get_value("public_key")

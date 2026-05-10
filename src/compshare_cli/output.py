@@ -23,7 +23,12 @@ def print_json(payload: Any) -> None:
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def command_suggestion(label: str, command: str, risk: Risk, requires_confirmation: bool) -> dict[str, object]:
+def command_suggestion(
+    label: str,
+    command: str,
+    risk: Risk,
+    requires_confirmation: bool,
+) -> dict[str, Any]:
     return {
         "label": label,
         "command": command,
@@ -33,15 +38,15 @@ def command_suggestion(label: str, command: str, risk: Risk, requires_confirmati
 
 
 def agent_envelope(
-    *,
     command: str,
     summary: str,
-    data: dict[str, Any] | None = None,
+    data: Any = None,
+    cost_risk: CostRisk = "none",
+    *,
     ok: bool = True,
     warnings: list[str] | None = None,
     next_actions: list[str] | None = None,
-    commands: list[dict[str, object]] | None = None,
-    cost_risk: CostRisk = "none",
+    commands: list[dict[str, Any]] | None = None,
     debug: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
