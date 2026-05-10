@@ -1,18 +1,18 @@
 # compshare-cli
 
-Python CLI for common [CompShare](https://www.compshare.cn/) GPU rental workflows.
+面向 [CompShare](https://www.compshare.cn/) 云 GPU 租用平台的 Python 命令行工具，覆盖智能体和人工终端常用的租用闭环：查询资源、查价、容量检查、创建前 dry-run、实例列表/详情、启动/停止/重启/删除。
 
-中文文档：[`README.zh-CN.md`](README.zh-CN.md)
+English documentation: [`README.en.md`](README.en.md)
 
-## Install
+## 安装
 
-Install directly from a public Git repository:
+公开仓库用户可以直接从 Git 仓库安装：
 
 ```bash
 uv tool install git+https://github.com/Long-louis/compshare-cli.git
 ```
 
-For local development:
+本地开发：
 
 ```bash
 git clone https://github.com/Long-louis/compshare-cli.git
@@ -21,42 +21,121 @@ uv sync
 uv run compshare --help
 ```
 
-If you cloned a fork or another mirror, replace the Git URL with that repository URL.
+如果你使用 fork 或其他镜像仓库，把上面的 Git URL 替换成对应仓库地址即可。
 
-## Credentials
+## 给 Code Agent 安装配套 Skill
 
-The CLI needs your CompShare `Public Key` and `Private Key`.
+本仓库包含 `compshare-cli` skill，用来提醒 Claude Code、OpenCode、Cursor 等 code agent 按安全流程使用本 CLI。
 
-To obtain them:
+安装到常用 agent：
 
-1. Sign in to the [CompShare web console](https://www.compshare.cn/).
-2. Open the account/API key management page.
-3. Copy the platform-provided `Public Key` and `Private Key`.
-4. Configure them with environment variables or local CLI config.
+```bash
+npx skills add Long-louis/compshare-cli --skill compshare-cli --agent '*' --copy -y
+```
 
-Use environment variables:
+全局安装：
+
+```bash
+npx skills add Long-louis/compshare-cli --skill compshare-cli --agent '*' --copy -g -y
+```
+
+查看仓库内可安装的 skills：
+
+```bash
+npx skills add Long-louis/compshare-cli --list --full-depth
+```
+
+安装后，当你让 code agent 准备或控制 CompShare GPU 实例时，它应优先从 `compshare doctor --agent` 开始，再执行查价、容量检查、dry-run 和需要确认的创建/删除操作。
+
+## 获取 Public Key 和 Private Key
+
+CLI 调用 CompShare API 需要平台账号的 `Public Key` 和 `Private Key`。
+
+获取方式：
+
+1. 登录 [CompShare 网页控制台](https://www.compshare.cn/)。
+2. 进入账号/API 密钥管理相关页面。
+3. 找到平台提供的 `Public Key` 和 `Private Key`。
+4. 将它们配置到本机环境变量或 CLI 本地配置中。
+
+安全注意事项：
+
+- 不要把 `Private Key` 粘贴到聊天记录、Issue、日志或 README 示例里。
+- `compshare config get` 默认会掩码显示密钥。
+- 如果要给智能体使用，建议先在本机配置好密钥，再让智能体运行只读命令。
+
+## 配置凭据
+
+方式一：使用环境变量，适合自动化和临时会话。
 
 ```bash
 export COMPSHARE_PUBLIC_KEY=...
 export COMPSHARE_PRIVATE_KEY=...
 ```
 
-Or store credentials locally:
+方式二：写入 CLI 本地配置，适合日常使用。
 
 ```bash
 compshare config set public-key ...
 compshare config set private-key ...
 ```
 
-Environment variables override the local config file. Keep the `Private Key` secret and do not paste it into chat logs, issues, or documentation.
+环境变量优先级高于本地配置文件。
 
-## Discover Zones
+检查配置：
 
 ```bash
-compshare resource zones
+compshare config get
+compshare doctor --agent
 ```
 
-## Check Price
+## 输出模式
+
+默认输出面向人类终端，尽量用摘要和表格。
+
+`--json` 输出面向脚本，只输出可解析 JSON，不应该混入 SDK 日志、自然语言解释或表格。
+
+`--agent` 输出面向 code agent，返回稳定 JSON envelope，包含：
+
+- `ok`：命令是否成功。
+- `summary`：一句话结论。
+- `data`：结构化事实数据。
+- `warnings`：风险或注意事项。
+- `next_actions`：下一步建议。
+- `commands`：可复制的后续命令，每条都带 `risk` 和 `requires_confirmation`。
+- `cost_risk`：整体风险，例如 `read-only`、`cost-incurring`、`destructive`。
+
+`--agent --debug` 保留给调试场景，诊断信息不能泄露密钥。
+
+## 智能体推荐入口
+
+让 code agent 使用这个 CLI 时，第一条命令应该是：
+
+```bash
+compshare doctor --agent
+```
+
+它会检查：
+
+- CLI 是否可运行。
+- 凭据是否存在以及来源。
+- API 是否可访问。
+- 支持的区域/可用区。
+- 当前账号下已有实例摘要。
+
+## 常用只读流程
+
+这些命令不会创建或删除资源，适合先让智能体执行：
+
+```bash
+compshare doctor --agent
+compshare resource zones --agent
+compshare resource images --type platform --json
+compshare resource images --type community --json
+compshare instance list --agent
+```
+
+## 查价
 
 ```bash
 compshare price create \
@@ -66,12 +145,27 @@ compshare price create \
   --gpu 1 \
   --cpu 16 \
   --memory 64 \
-  --disk-size 200
+  --disk-size 200 \
+  --agent
 ```
 
-## Create Instance
+## 容量检查
 
-Inspect the request first without creating resources:
+```bash
+compshare resource capacity \
+  --zone cn-sh2-02 \
+  --image-id compshareImage-xxx \
+  --gpu-type 4090 \
+  --gpu 1 \
+  --cpu 16 \
+  --memory 64 \
+  --disk-size 200 \
+  --json
+```
+
+## 创建前 dry-run
+
+创建前先 dry-run，检查请求体，不产生费用：
 
 ```bash
 compshare instance create \
@@ -84,10 +178,12 @@ compshare instance create \
   --disk-size 200 \
   --name my-gpu \
   --dry-run \
-  --json
+  --agent
 ```
 
-Live creation can incur cost and requires `--yes`:
+## 创建实例
+
+真实创建实例会产生费用，必须显式加 `--yes`：
 
 ```bash
 compshare instance create \
@@ -99,38 +195,41 @@ compshare instance create \
   --memory 64 \
   --disk-size 200 \
   --name my-gpu \
+  --agent \
   --yes
 ```
 
-## JSON Output
+建议让智能体执行真实创建前先完成：
 
-Most commands accept `--json` for automation. JSON output is intended to be parseable stdout without SDK logs or human text.
+1. `doctor --agent`
+2. `resource zones --agent`
+3. `price create --agent`
+4. `resource capacity --json`
+5. `instance create --dry-run --agent`
+6. 获得用户明确确认后，再执行 `instance create --agent --yes`
 
-## Agent Mode
+## 管理实例
 
-- Start with `compshare doctor --agent` to verify CLI configuration and API reachability.
-- Output modes:
-  - Default: human-readable tables and summaries.
-  - `--json`: machine-readable factual data for scripts.
-  - `--agent`: stable JSON envelope for code agents.
-  - `--agent --debug`: agent envelope with extra diagnostics.
-- Safety rules:
-  - `read-only` / `safe`: agent can run without confirmation.
-  - `cost-incurring`: requires explicit user approval and usually `--yes`.
-  - `destructive`: requires explicit user approval and `--yes`.
-  - `sensitive`: may expose or change secrets; requires explicit user approval.
-- Typical agent flow:
-  1. `compshare doctor --agent`
-  2. `compshare resource zones --agent`
-  3. `compshare price create ... --agent`
-  4. `compshare instance create ... --dry-run --agent`
-  5. `compshare instance create ... --agent --yes` after explicit approval.
+```bash
+compshare instance list --agent
+compshare instance show <INSTANCE_ID> --agent
+compshare instance start <INSTANCE_ID> --agent
+compshare instance stop <INSTANCE_ID> --agent
+compshare instance reboot <INSTANCE_ID> --agent
+compshare instance delete <INSTANCE_ID> --agent --yes
+```
 
-## References
+风险规则：
 
-- [CompShare operation examples](https://www.compshare.cn/docs/gpus/operationexample)
-- [CompShare Python SDK examples](https://github.com/ucloud/compshare-developer-examples/tree/main/python-sdk/compshare)
+- `start` 可能导致计费，智能体执行前应获得用户确认。
+- `delete` 是破坏性操作，必须显式确认并加 `--yes`。
+- `stop` 后是否仍计费取决于平台计费规则，执行前应结合实例状态和平台说明判断。
 
-## License
+## 参考资料
+
+- [CompShare 操作示例文档](https://www.compshare.cn/docs/gpus/operationexample)
+- [CompShare Python SDK 示例](https://github.com/ucloud/compshare-developer-examples/tree/main/python-sdk/compshare)
+
+## 开源协议
 
 [MIT](LICENSE)

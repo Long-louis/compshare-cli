@@ -1,41 +1,109 @@
-# compshare-cli Skill
+---
+name: compshare-cli
+description: Use when preparing, renting, inspecting, starting, stopping, rebooting, or deleting CompShare GPU cloud instances with the compshare CLI, especially for code-agent workflows on remote GPU servers.
+---
 
-Use this skill when the user needs to interact with CompShare GPU rental platform via CLI, such as checking zones, prices, creating instances, or managing GPU resources.
+# compshare-cli
 
-## First Command
+## Overview
 
-Always start with:
+Use `compshare` to safely inspect CompShare GPU resources, estimate cost, check capacity, preview instance creation, and manage instances. Agents must preserve parseable output and never create billable or destructive changes without explicit user approval.
+
+## Setup Check
+
+If the CLI is not installed, install it from the public repository:
+
+```bash
+uv tool install git+https://github.com/Long-louis/compshare-cli.git
+```
+
+Then start every workflow with:
 
 ```bash
 compshare doctor --agent
 ```
 
-This verifies CLI configuration and credentials for automated use.
+`--agent` returns a stable JSON envelope with `ok`, `summary`, `data`, `warnings`, `next_actions`, `commands`, and `cost_risk`. Prefer `--agent` for agent decisions and `--json` for raw script parsing.
 
-## Safety Rules
+## Credentials
 
-- **No cost-incurring operations without explicit approval** – commands that create billable resources (e.g., `instance create`) require `--yes` flag or confirmation.
-- **No destructive operations without approval** – termination commands require explicit consent.
-- **No sensitive data exposure** – avoid printing API keys in output.
+The CLI needs `COMPSHARE_PUBLIC_KEY` and `COMPSHARE_PRIVATE_KEY`, or local config set by:
 
-## Common Read Path (Safe)
+```bash
+compshare config set public-key <PUBLIC_KEY>
+compshare config set private-key <PRIVATE_KEY>
+```
 
-These commands are read-only and safe to run without approval:
-- `compshare doctor --agent`
-- `compshare resource zones --agent`
-- `compshare instance list --agent`
-- `compshare instance show <id> --agent`
+Never print, reveal, log, or paste the private key. `compshare config get` masks stored secrets by default.
+
+## Safe Discovery
+
+Read-only commands are safe to run without approval:
+
+```bash
+compshare doctor --agent
+compshare resource zones --agent
+compshare resource images --type platform --json
+compshare resource images --type community --json
+compshare resource instance-types --zone <ZONE> --json
+compshare instance list --agent
+compshare instance show <INSTANCE_ID> --agent
+```
+
+Use `resource images` to discover `--image-id`. Use `resource instance-types` to discover valid GPU/machine types for a zone.
 
 ## New Instance Workflow
 
-1. **Query price** (read-only):
-   `compshare price create --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent`
-2. **Preview creation** (dry-run, no billing):
-   `compshare instance create --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --dry-run --agent`
-3. **Check capacity** (read-only):
-   `compshare resource capacity --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent`
-4. **Get approval** from user for the displayed price and capacity.
-5. **Create live instance** only after explicit approval:
-   `compshare instance create --zone cn-sh2-02 --image-id <IMAGE_ID> --gpu-type 4090 --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent --yes`
+Follow this order. Do not skip dry-run or approval.
 
-Do not bypass the dry-run step or skip user approval when creating instances.
+1. Check price:
+
+```bash
+compshare price create --zone <ZONE> --image-id <IMAGE_ID> --gpu-type <GPU_TYPE> --gpu 1 --cpu 16 --memory 64 --disk-size 200 --agent
+```
+
+2. Check capacity:
+
+```bash
+compshare resource capacity --zone <ZONE> --image-id <IMAGE_ID> --gpu-type <GPU_TYPE> --gpu 1 --cpu 16 --memory 64 --disk-size 200 --json
+```
+
+3. Preview creation without billing:
+
+```bash
+compshare instance create --zone <ZONE> --image-id <IMAGE_ID> --gpu-type <GPU_TYPE> --gpu 1 --cpu 16 --memory 64 --disk-size 200 --name <NAME> --dry-run --agent
+```
+
+4. Ask the user for explicit approval. Include price, zone, GPU type, CPU, memory, disk, image, and instance name.
+
+5. Create only after approval:
+
+```bash
+compshare instance create --zone <ZONE> --image-id <IMAGE_ID> --gpu-type <GPU_TYPE> --gpu 1 --cpu 16 --memory 64 --disk-size 200 --name <NAME> --agent --yes
+```
+
+If capacity is unavailable or the API returns insufficient resources, try another zone, GPU type, or smaller resource request; otherwise ask the user whether to retry later.
+
+## Instance Management
+
+```bash
+compshare instance list --agent
+compshare instance show <INSTANCE_ID> --agent
+compshare instance start <INSTANCE_ID> --agent
+compshare instance stop <INSTANCE_ID> --agent
+compshare instance reboot <INSTANCE_ID> --agent
+compshare instance delete <INSTANCE_ID> --agent --yes
+```
+
+`start` may incur cost. `delete` is destructive and requires explicit approval plus `--yes`. Ask before running lifecycle operations unless the user already gave a clear instruction.
+
+## Common Mistakes
+
+| Mistake | Correct Action |
+| --- | --- |
+| Creating directly from a user request | Run price, capacity, and dry-run first |
+| Omitting `--agent` in agent workflows | Use `--agent` for decisions and suggestions |
+| Guessing image IDs | Discover them with `resource images` |
+| Guessing supported GPU types | Discover them with `resource instance-types` |
+| Treating dry-run as approval | Ask the user before live create |
+| Printing secrets for debugging | Use masked `config get` or `doctor --agent` |
