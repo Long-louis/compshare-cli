@@ -56,10 +56,11 @@ compshare instance create \
   --cpu 16 \
   --memory 64 \
   --disk-size 200 \
-  --name my-gpu
+  --name my-gpu \
+  --yes
 ```
 
-Use `--dry-run --json` to inspect the request body without creating resources.
+Use `--dry-run --json` to inspect the request body without creating resources. Live creation requires `--yes` because it can incur cost.
 
 ## JSON Output
 
