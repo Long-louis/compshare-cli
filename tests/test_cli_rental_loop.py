@@ -29,7 +29,7 @@ class FakeCompShareClient:
         if action == "CreateCompShareInstance":
             return {"RetCode": 0, "UHostIds": ["uhost-1"]}
         if action == "DescribeCompShareInstance":
-            return {"RetCode": 0, "UHostSet": [{"UHostId": "uhost-1", "Name": "gpu"}]}
+            return {"RetCode": 0, "UHostSet": [{"UHostId": "uhost-1", "Name": "gpu", "State": "Stopped", "Zone": "cn-sh2-02"}]}
         if action == "GetCompShareInstancePrice":
             return {"RetCode": 0, "Price": 12.3}
         return {"RetCode": 0}
@@ -381,3 +381,50 @@ def test_price_create_agent_output_includes_cost_command(monkeypatch):
     for cmd in commands:
         assert "{" not in cmd["command"]
         assert "}" not in cmd["command"]
+
+
+def test_instance_list_agent_suggests_actions(monkeypatch):
+    install_fake_client(monkeypatch)
+
+    result = runner.invoke(cli.app, ["instance", "list", "--agent"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["command"] == "instance_list"
+    assert payload["data"]["instances"][0]["id"] == "uhost-1"
+    assert any(cmd["label"] == "Start uhost-1" for cmd in payload["commands"])
+
+
+def test_instance_create_dry_run_agent_does_not_create(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "create",
+            "--zone",
+            "cn-sh2-02",
+            "--image-id",
+            "compshareImage-xxx",
+            "--gpu-type",
+            "4090",
+            "--gpu",
+            "1",
+            "--cpu",
+            "16",
+            "--memory",
+            "64",
+            "--disk-size",
+            "200",
+            "--dry-run",
+            "--agent",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["command"] == "instance_create"
+    assert payload["data"]["dry_run"] is True
+    assert fake.calls[-1][0] == "DescribeCompShareSupportZone"
+    assert all(call[0] != "CreateCompShareInstance" for call in fake.calls)

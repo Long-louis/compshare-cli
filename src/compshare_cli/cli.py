@@ -148,16 +148,56 @@ def instance_create(
     name: Annotated[str | None, typer.Option("--name")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
     try:
         options = make_create_options(zone, region, image_id, gpu_type, gpu, cpu, memory, disk_size, name)
         payload = build_create_instance_request(options)
         if dry_run:
+            if agent_output:
+                base_opts = {
+                    "zone": options.zone,
+                    "image-id": options.image_id,
+                    "gpu-type": options.gpu_type,
+                    "gpu": options.gpu,
+                    "cpu": options.cpu,
+                    "memory": options.memory_gib,
+                    "disk-size": options.disk_size_gib,
+                    "dry-run": True,
+                }
+                if options.region:
+                    base_opts["region"] = options.region
+                if options.name:
+                    base_opts["name"] = options.name
+                create_cmd = create_command_from_payload("instance create", {k: v for k, v in base_opts.items() if k != "dry-run"})
+                envelope = agent_envelope(
+                    "instance_create",
+                    "Previewed instance creation. No instance was created.",
+                    {"dry_run": True, "request": payload},
+                    "none",
+                    ok=True,
+                    warnings=["Live creation will incur cost."],
+                    next_actions=["Ask the user before running the live create command."],
+                    commands=[command_suggestion("Create instance", create_cmd, "cost-incurring", True)],
+                )
+                print_json(envelope)
+                return
             print_json(payload) if json_output else typer.echo(payload)
             return
         response = get_client().invoke("CreateCompShareInstance", payload)
     except (CliError, ValueError) as error:
-        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output)
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "instance_create",
+            f"Created instance: {', '.join(response.get('UHostIds', []))}",
+            {"instance_ids": response.get("UHostIds", [])},
+            "cost-incurring",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {response.get('UHostIds', [''])[0]} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
     if json_output:
         print_json(response)
         return
@@ -231,11 +271,33 @@ def price_create(
 
 
 @instance_app.command("list")
-def instance_list(json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
+def instance_list(
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
     try:
         response = get_client().invoke("DescribeCompShareInstance", {})
     except CliError as error:
-        handle_cli_error(error, json_output)
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        instances = normalize_instances(response.get("UHostSet", []))
+        suggestions = []
+        for item in instances[:5]:
+            instance_id = item.get("id", "")
+            if item.get("state") == "Stopped":
+                suggestions.append(command_suggestion(f"Start {instance_id}", f"compshare instance start {instance_id} --agent", "cost-incurring", True))
+            elif item.get("state"):
+                suggestions.append(command_suggestion(f"Show {instance_id}", f"compshare instance show {instance_id} --agent", "safe", False))
+        envelope = agent_envelope(
+            "instance_list",
+            f"Found {len(instances)} instances.",
+            {"instances": instances},
+            "read-only",
+            ok=True,
+            commands=suggestions,
+        )
+        print_json(envelope)
+        return
     if json_output:
         print_json(response)
         return
@@ -244,35 +306,73 @@ def instance_list(json_output: Annotated[bool, typer.Option("--json", help="Outp
 
 
 @instance_app.command("show")
-def instance_show(instance_id: str, json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
+def instance_show(
+    instance_id: str,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
     try:
         response = get_client().invoke("DescribeCompShareInstance", {"UHostIds": [instance_id]})
     except CliError as error:
-        handle_cli_error(error, json_output)
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        instances = normalize_instances(response.get("UHostSet", []))
+        envelope = agent_envelope(
+            "instance_show",
+            f"Instance {instance_id} details",
+            {"instance": instances[0] if instances else {}},
+            "read-only",
+            ok=True,
+        )
+        print_json(envelope)
+        return
     print_response(response, json_output)
 
 
-def invoke_instance_action(action: str, instance_id: str, json_output: bool) -> None:
+def invoke_instance_action(action: str, instance_id: str, json_output: bool, agent_output: bool = False, command_name: str = "instance") -> None:
     try:
         response = get_client().invoke(action, {"UHostId": instance_id})
     except CliError as error:
-        handle_cli_error(error, json_output)
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            f"{command_name}",
+            f"Requested {command_name} for instance {instance_id}.",
+            {"instance_id": instance_id, "response": response},
+            "cost-incurring" if command_name in ["start", "reboot"] else "destructive" if command_name == "delete" else "safe",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
     print_json(response) if json_output else typer.echo("OK")
 
 
 @instance_app.command("start")
-def instance_start(instance_id: str, json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
-    invoke_instance_action("StartCompShareInstance", instance_id, json_output)
+def instance_start(
+    instance_id: str,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    invoke_instance_action("StartCompShareInstance", instance_id, json_output, agent_output, "start")
 
 
 @instance_app.command("stop")
-def instance_stop(instance_id: str, json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
-    invoke_instance_action("StopCompShareInstance", instance_id, json_output)
+def instance_stop(
+    instance_id: str,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    invoke_instance_action("StopCompShareInstance", instance_id, json_output, agent_output, "stop")
 
 
 @instance_app.command("reboot")
-def instance_reboot(instance_id: str, json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False) -> None:
-    invoke_instance_action("RebootCompShareInstance", instance_id, json_output)
+def instance_reboot(
+    instance_id: str,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    invoke_instance_action("RebootCompShareInstance", instance_id, json_output, agent_output, "reboot")
 
 
 @instance_app.command("delete")
@@ -280,11 +380,12 @@ def instance_delete(
     instance_id: str,
     yes: Annotated[bool, typer.Option("--yes", help="Confirm deletion.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
     if not yes:
         typer.echo("instance delete requires --yes")
         raise typer.Exit(1)
-    invoke_instance_action("TerminateCompShareInstance", instance_id, json_output)
+    invoke_instance_action("TerminateCompShareInstance", instance_id, json_output, agent_output, "delete")
 
 
 @resource_app.command("machine-families")
