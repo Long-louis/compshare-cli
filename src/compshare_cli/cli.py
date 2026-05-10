@@ -66,15 +66,40 @@ def config_path() -> None:
 def get_client() -> CompShareClient:
     credentials = load_credentials()
     if credentials is None:
-        raise CliError(MISSING_CREDENTIALS_MESSAGE, type_name="MissingCredentials")
+        raise CliError(
+            MISSING_CREDENTIALS_MESSAGE,
+            type_name="MissingCredentials",
+            hint="Set COMPSHARE_PUBLIC_KEY/COMPSHARE_PRIVATE_KEY or run compshare config set public-key/private-key."
+        )
     return CompShareClient(credentials)
 
 
-def handle_cli_error(error: CliError, json_output: bool, agent_output: bool = False) -> None:
-    if json_output or agent_output:
+def handle_cli_error(error: CliError, json_output: bool, agent_output: bool = False, command: str = "command") -> None:
+    if agent_output:
+        first_line = error.message.splitlines()[0] if error.message else ""
+        next_actions = [error.hint] if error.hint else []
+        commands = []
+        if error.type_name == "MissingCredentials":
+            commands = [
+                command_suggestion("Set public key", "compshare config set public-key YOUR_KEY", "sensitive", True),
+                command_suggestion("Set private key", "compshare config set private-key YOUR_KEY", "sensitive", True),
+            ]
+        envelope = agent_envelope(
+            command,
+            first_line,
+            {"error": error.message, "type": error.type_name},
+            "none",
+            ok=False,
+            warnings=[first_line] if first_line else [],
+            next_actions=next_actions,
+            commands=commands,
+        )
+        print_json(envelope)
+        raise typer.Exit(1)
+    if json_output:
         print_json(error.to_json())
-    else:
-        typer.echo(error.message, err=True)
+        raise typer.Exit(1)
+    typer.echo(error.message, err=True)
     raise typer.Exit(1)
 
 
@@ -93,7 +118,7 @@ def resource_zones(
     try:
         zones = get_client().support_zones()
     except CliError as error:
-        handle_cli_error(error, json_output, agent_output)
+        handle_cli_error(error, json_output, agent_output, "resource zones")
     normalized = normalize_zones(zones)
     if agent_output:
         commands = [

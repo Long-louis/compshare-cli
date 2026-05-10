@@ -2,16 +2,19 @@ from __future__ import annotations
 
 
 class CliError(Exception):
-    def __init__(self, message: str, *, type_name: str = "CliError", ret_code: int | None = None) -> None:
+    def __init__(self, message: str, *, type_name: str = "CliError", ret_code: int | None = None, hint: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.type_name = type_name
         self.ret_code = ret_code
+        self.hint = hint
 
     def to_json(self) -> dict[str, object]:
         error: dict[str, object] = {"type": self.type_name, "message": self.message}
         if self.ret_code is not None:
             error["ret_code"] = self.ret_code
+        if self.hint is not None:
+            error["hint"] = self.hint
         return {"error": error}
 
 

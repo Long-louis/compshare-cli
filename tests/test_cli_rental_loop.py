@@ -507,3 +507,26 @@ def test_instance_lifecycle_agent_outputs(monkeypatch, cmd, action, expected_ris
     # Should have a follow-up command (Show instance)
     assert len(payload.get("commands", [])) >= 1
     assert any(cmd_sug["label"] == f"Show instance" for cmd_sug in payload["commands"])
+
+
+def test_missing_credentials_agent_error_is_parseable(monkeypatch):
+    monkeypatch.setattr(cli, "load_credentials", lambda: None)
+
+    result = runner.invoke(cli.app, ["resource", "zones", "--agent"])
+
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["cost_risk"] == "none"
+    assert result.stderr == ""
+
+
+def test_json_error_has_hint(monkeypatch):
+    monkeypatch.setattr(cli, "load_credentials", lambda: None)
+
+    result = runner.invoke(cli.app, ["resource", "zones", "--json"])
+
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["error"]["type"] == "MissingCredentials"
+    assert "hint" in payload["error"]
