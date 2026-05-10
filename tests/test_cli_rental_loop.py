@@ -258,6 +258,18 @@ def test_resource_wrappers_call_expected_actions(monkeypatch, args, action):
     assert fake.calls[-1][0] == action
 
 
+def test_instance_types_resolves_region_and_filters_machine_types(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+
+    result = runner.invoke(cli.app, ["resource", "instance-types", "--zone", "cn-sh2-02", "--gpu-type", "4090"])
+
+    assert result.exit_code == 0
+    assert fake.calls[-1] == (
+        "DescribeAvailableCompShareInstanceTypes",
+        {"Region": "cn-sh2", "Zone": "cn-sh2-02", "MachineTypes": ["4090"]},
+    )
+
+
 def test_resource_capacity_calls_capacity_api(monkeypatch):
     fake = install_fake_client(monkeypatch)
 

@@ -41,6 +41,7 @@ def test_build_create_instance_request_converts_memory_and_disk():
     assert request["Region"] == "cn-sh2"
     assert request["Zone"] == "cn-sh2-02"
     assert request["Memory"] == 65536
+    assert request["MinimalCpuPlatform"] == "Auto"
     assert request["ChargeType"] == "Dynamic"
     assert request["Disks"] == [{"IsBoot": True, "Size": 200, "Type": "CLOUD_SSD"}]
 

@@ -17,6 +17,7 @@ class CreateInstanceOptions:
     name: str | None = None
     machine_type: str = "G"
     disk_type: str = "CLOUD_SSD"
+    minimal_cpu_platform: str = "Auto"
     charge_type: str = "Dynamic"
     quantity: int = 1
 
@@ -56,6 +57,7 @@ def build_create_instance_request(options: CreateInstanceOptions) -> dict[str, A
         "GpuType": options.gpu_type,
         "CPU": options.cpu,
         "Memory": options.memory_gib * 1024,
+        "MinimalCpuPlatform": options.minimal_cpu_platform,
         "ChargeType": options.charge_type,
         "Quantity": options.quantity,
         "Disks": [{"IsBoot": True, "Size": options.disk_size_gib, "Type": options.disk_type}],

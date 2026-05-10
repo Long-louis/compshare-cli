@@ -243,13 +243,15 @@ def resource_instance_types(
     gpu_type: Annotated[str | None, typer.Option("--gpu-type")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
 ) -> None:
-    payload = {"Zone": zone}
-    if gpu_type:
-        payload["GpuType"] = gpu_type
     try:
-        response = get_client().invoke("DescribeAvailableCompShareInstanceTypes", payload)
-    except CliError as e:
-        handle_cli_error(e, json_output)
+        client = get_client()
+        region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        payload = {"Region": region, "Zone": resolved_zone}
+        if gpu_type:
+            payload["MachineTypes"] = [gpu_type]
+        response = client.invoke("DescribeAvailableCompShareInstanceTypes", payload)
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output)
     else:
         print_response(response, json_output)
 
