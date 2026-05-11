@@ -27,22 +27,18 @@ uv run compshare --help
 
 本仓库包含 `compshare-cli` skill，用来提醒 Claude Code、OpenCode、Cursor 等 code agent 按安全流程使用本 CLI。
 
-安装到常用 agent：
+交互式安装：
 
 ```bash
-npx skills add Long-louis/compshare-cli --skill compshare-cli --agent '*' --copy -y
+npx skills add Long-louis/compshare-cli
 ```
 
-全局安装：
+运行后按提示选择安装范围、目标 agent 和 `compshare-cli` skill。
+
+如果要先查看仓库内可安装的 skills：
 
 ```bash
-npx skills add Long-louis/compshare-cli --skill compshare-cli --agent '*' --copy -g -y
-```
-
-查看仓库内可安装的 skills：
-
-```bash
-npx skills add Long-louis/compshare-cli --list --full-depth
+npx skills add Long-louis/compshare-cli --list
 ```
 
 安装后，当你让 code agent 准备或控制 CompShare GPU 实例时，它应优先从 `compshare doctor --agent` 开始，再执行查价、容量检查、dry-run 和需要确认的创建/删除操作。

@@ -27,22 +27,18 @@ If you cloned a fork or another mirror, replace the Git URL with that repository
 
 This repository includes a `compshare-cli` skill for Claude Code, OpenCode, Cursor, and other code agents. It teaches agents to use this CLI with the safe read-only, price, capacity, dry-run, approval, and create/delete flow.
 
-Install it for common agents:
+Install interactively:
 
 ```bash
-npx skills add Long-louis/compshare-cli --skill compshare-cli --agent '*' --copy -y
+npx skills add Long-louis/compshare-cli
 ```
 
-Install globally:
+Follow the prompts to choose the install scope, target agent, and `compshare-cli` skill.
+
+List available skills from this repository first:
 
 ```bash
-npx skills add Long-louis/compshare-cli --skill compshare-cli --agent '*' --copy -g -y
-```
-
-List available skills from this repository:
-
-```bash
-npx skills add Long-louis/compshare-cli --list --full-depth
+npx skills add Long-louis/compshare-cli --list
 ```
 
 ## Credentials
