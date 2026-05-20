@@ -373,10 +373,25 @@ def instance_show(
     print_response(response, json_output)
 
 
-def invoke_instance_action(action: str, instance_id: str, zone: str, json_output: bool, agent_output: bool = False, command_name: str = "instance", without_gpu: bool = False) -> None:
+def _resolve_instance_zone(instance_id: str, client) -> tuple[str, str]:
+    response = client.invoke("DescribeCompShareInstance", {"UHostIds": [instance_id]})
+    instances = response.get("UHostSet", [])
+    if not instances:
+        raise CliError(f"Instance {instance_id} not found")
+    zone = instances[0].get("Zone")
+    if not zone:
+        raise CliError(f"Instance {instance_id} has no Zone field")
+    region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+    return region, resolved_zone
+
+
+def invoke_instance_action(action: str, instance_id: str, zone: str | None, json_output: bool, agent_output: bool = False, command_name: str = "instance", without_gpu: bool = False) -> None:
     try:
         client = get_client()
-        region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
         payload: dict = {"Region": region, "Zone": resolved_zone, "UHostId": instance_id}
         if without_gpu:
             payload["WithoutGpu"] = True
@@ -401,7 +416,7 @@ def invoke_instance_action(action: str, instance_id: str, zone: str, json_output
 @instance_app.command("start")
 def instance_start(
     instance_id: str,
-    zone: Annotated[str, typer.Option("--zone")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
     without_gpu: Annotated[bool, typer.Option("--without-gpu", help="Start without GPU card (cardless mode).")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
@@ -412,7 +427,7 @@ def instance_start(
 @instance_app.command("stop")
 def instance_stop(
     instance_id: str,
-    zone: Annotated[str, typer.Option("--zone")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
@@ -422,7 +437,7 @@ def instance_stop(
 @instance_app.command("reboot")
 def instance_reboot(
     instance_id: str,
-    zone: Annotated[str, typer.Option("--zone")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
@@ -432,7 +447,7 @@ def instance_reboot(
 @instance_app.command("delete")
 def instance_delete(
     instance_id: str,
-    zone: Annotated[str, typer.Option("--zone")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
     yes: Annotated[bool, typer.Option("--yes", help="Confirm deletion.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,

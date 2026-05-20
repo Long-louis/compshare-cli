@@ -128,7 +128,7 @@ def test_instance_create_calls_api(monkeypatch):
 def test_instance_delete_requires_yes(monkeypatch):
     install_fake_client(monkeypatch)
 
-    result = runner.invoke(cli.app, ["instance", "delete", "uhost-1", "--zone", "cn-sh2-02"])
+    result = runner.invoke(cli.app, ["instance", "delete", "uhost-1"])
 
     assert result.exit_code != 0
     assert "--yes" in result.stdout
@@ -184,13 +184,35 @@ def test_instance_list_renders_instance(monkeypatch):
 def test_instance_lifecycle_actions(monkeypatch, command, action):
     fake = install_fake_client(monkeypatch)
 
-    result = runner.invoke(cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"])
+    result = runner.invoke(cli.app, ["instance", command, "uhost-1"])
 
     assert result.exit_code == 0
     assert fake.calls[-1][0] == action
     assert fake.calls[-1][1]["UHostId"] == "uhost-1"
     assert "Region" in fake.calls[-1][1]
     assert "Zone" in fake.calls[-1][1]
+    assert fake.calls[0][0] == "DescribeCompShareInstance"
+
+
+@pytest.mark.parametrize(
+    ("command", "action"),
+    [
+        ("start", "StartCompShareInstance"),
+        ("stop", "StopCompShareInstance"),
+        ("reboot", "RebootCompShareInstance"),
+    ],
+)
+def test_instance_lifecycle_with_explicit_zone_skips_lookup(monkeypatch, command, action):
+    fake = install_fake_client(monkeypatch)
+
+    result = runner.invoke(cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"])
+
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == action
+    assert fake.calls[-1][1]["UHostId"] == "uhost-1"
+    assert fake.calls[-1][1]["Zone"] == "cn-sh2-02"
+    assert fake.calls[-1][1]["Region"] == "cn-sh2"
+    assert all(call[0] != "DescribeCompShareInstance" for call in fake.calls)
 
 
 def test_invalid_zone_exits_cleanly(monkeypatch):
@@ -531,7 +553,7 @@ def test_instance_show_agent_outputs_detail_and_command(monkeypatch):
 def test_instance_lifecycle_agent_outputs(monkeypatch, cmd, action, expected_risk):
     fake = install_fake_client(monkeypatch)
 
-    args = ["instance", cmd, "uhost-1", "--zone", "cn-sh2-02", "--agent"]
+    args = ["instance", cmd, "uhost-1", "--agent"]
     if cmd == "delete":
         args.append("--yes")
     if cmd == "start":
