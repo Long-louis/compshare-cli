@@ -128,7 +128,7 @@ def test_instance_create_calls_api(monkeypatch):
 def test_instance_delete_requires_yes(monkeypatch):
     install_fake_client(monkeypatch)
 
-    result = runner.invoke(cli.app, ["instance", "delete", "uhost-1"])
+    result = runner.invoke(cli.app, ["instance", "delete", "uhost-1", "--zone", "cn-sh2-02"])
 
     assert result.exit_code != 0
     assert "--yes" in result.stdout
@@ -184,10 +184,13 @@ def test_instance_list_renders_instance(monkeypatch):
 def test_instance_lifecycle_actions(monkeypatch, command, action):
     fake = install_fake_client(monkeypatch)
 
-    result = runner.invoke(cli.app, ["instance", command, "uhost-1"])
+    result = runner.invoke(cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"])
 
     assert result.exit_code == 0
-    assert fake.calls[-1] == (action, {"UHostId": "uhost-1"})
+    assert fake.calls[-1][0] == action
+    assert fake.calls[-1][1]["UHostId"] == "uhost-1"
+    assert "Region" in fake.calls[-1][1]
+    assert "Zone" in fake.calls[-1][1]
 
 
 def test_invalid_zone_exits_cleanly(monkeypatch):
@@ -528,9 +531,11 @@ def test_instance_show_agent_outputs_detail_and_command(monkeypatch):
 def test_instance_lifecycle_agent_outputs(monkeypatch, cmd, action, expected_risk):
     fake = install_fake_client(monkeypatch)
 
-    args = ["instance", cmd, "uhost-1", "--agent"]
+    args = ["instance", cmd, "uhost-1", "--zone", "cn-sh2-02", "--agent"]
     if cmd == "delete":
         args.append("--yes")
+    if cmd == "start":
+        args.append("--without-gpu")
 
     result = runner.invoke(cli.app, args)
 
@@ -540,6 +545,12 @@ def test_instance_lifecycle_agent_outputs(monkeypatch, cmd, action, expected_ris
     assert payload["cost_risk"] == expected_risk
     assert payload["data"]["instance_id"] == "uhost-1"
     assert any(call[0] == action for call in fake.calls)
+    matching_call = next(call for call in fake.calls if call[0] == action)
+    assert matching_call[1]["UHostId"] == "uhost-1"
+    assert "Region" in matching_call[1]
+    assert "Zone" in matching_call[1]
+    if cmd == "start":
+        assert matching_call[1].get("WithoutGpu") is True
     # Should have a follow-up command (Show instance)
     assert len(payload.get("commands", [])) >= 1
     assert any(cmd_sug["label"] == f"Show instance" for cmd_sug in payload["commands"])

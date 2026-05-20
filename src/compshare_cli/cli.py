@@ -373,11 +373,17 @@ def instance_show(
     print_response(response, json_output)
 
 
-def invoke_instance_action(action: str, instance_id: str, json_output: bool, agent_output: bool = False, command_name: str = "instance") -> None:
+def invoke_instance_action(action: str, instance_id: str, zone: str, json_output: bool, agent_output: bool = False, command_name: str = "instance", without_gpu: bool = False) -> None:
     try:
-        response = get_client().invoke(action, {"UHostId": instance_id})
+        client = get_client()
+        region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        payload: dict = {"Region": region, "Zone": resolved_zone, "UHostId": instance_id}
+        if without_gpu:
+            payload["WithoutGpu"] = True
+        response = client.invoke(action, payload)
     except CliError as error:
         handle_cli_error(error, json_output, agent_output)
+        return
     if agent_output:
         envelope = agent_envelope(
             f"{command_name}",
@@ -395,33 +401,38 @@ def invoke_instance_action(action: str, instance_id: str, json_output: bool, age
 @instance_app.command("start")
 def instance_start(
     instance_id: str,
+    zone: Annotated[str, typer.Option("--zone")],
+    without_gpu: Annotated[bool, typer.Option("--without-gpu", help="Start without GPU card (cardless mode).")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
-    invoke_instance_action("StartCompShareInstance", instance_id, json_output, agent_output, "start")
+    invoke_instance_action("StartCompShareInstance", instance_id, zone, json_output, agent_output, "start", without_gpu)
 
 
 @instance_app.command("stop")
 def instance_stop(
     instance_id: str,
+    zone: Annotated[str, typer.Option("--zone")],
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
-    invoke_instance_action("StopCompShareInstance", instance_id, json_output, agent_output, "stop")
+    invoke_instance_action("StopCompShareInstance", instance_id, zone, json_output, agent_output, "stop")
 
 
 @instance_app.command("reboot")
 def instance_reboot(
     instance_id: str,
+    zone: Annotated[str, typer.Option("--zone")],
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
-    invoke_instance_action("RebootCompShareInstance", instance_id, json_output, agent_output, "reboot")
+    invoke_instance_action("RebootCompShareInstance", instance_id, zone, json_output, agent_output, "reboot")
 
 
 @instance_app.command("delete")
 def instance_delete(
     instance_id: str,
+    zone: Annotated[str, typer.Option("--zone")],
     yes: Annotated[bool, typer.Option("--yes", help="Confirm deletion.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
@@ -429,7 +440,7 @@ def instance_delete(
     if not yes:
         typer.echo("instance delete requires --yes")
         raise typer.Exit(1)
-    invoke_instance_action("TerminateCompShareInstance", instance_id, json_output, agent_output, "delete")
+    invoke_instance_action("TerminateCompShareInstance", instance_id, zone, json_output, agent_output, "delete")
 
 
 @resource_app.command("machine-families")
