@@ -913,7 +913,7 @@ def disk_detach(
                 "disk_detach",
                 message,
                 {},
-                "may-incur-cost",
+                "destructive",
                 ok=False,
                 warnings=[message],
                 next_actions=["Add --yes to confirm disk detachment."],
@@ -939,7 +939,7 @@ def disk_detach(
             "disk_detach",
             "OK",
             {"disk_id": disk_id, "instance_id": instance_id},
-            "may-incur-cost",
+            "destructive",
             ok=True,
             commands=[command_suggestion("List instances", "compshare instance list --agent", "safe", False)],
         )

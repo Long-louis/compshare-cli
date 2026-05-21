@@ -191,6 +191,38 @@ def test_disk_delete_agent_without_yes(monkeypatch):
     assert "--yes" in data["summary"]
 
 
+def test_disk_detach_agent_without_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, [
+        "disk", "detach",
+        "--disk-id", "udisk-1",
+        "--instance-id", "uhost-1",
+        "--agent",
+    ])
+    assert result.exit_code != 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is False
+    assert data["cost_risk"] == "destructive"
+    assert all(call[0] != "DetachCompShareDisk" for call in fake.calls)
+
+
+def test_disk_detach_agent_yes_returns_json(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, [
+        "disk", "detach",
+        "--disk-id", "udisk-1",
+        "--instance-id", "uhost-1",
+        "--agent",
+        "--yes",
+    ])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is True
+    assert data["cost_risk"] == "destructive"
+    assert data["data"]["disk_id"] == "udisk-1"
+    assert data["data"]["instance_id"] == "uhost-1"
+
+
 def test_disk_resize_json(monkeypatch):
     fake = install_fake_client(monkeypatch)
     result = runner.invoke(cli.app, [
