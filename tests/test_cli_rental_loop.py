@@ -683,3 +683,29 @@ def test_json_error_has_hint(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["error"]["type"] == "MissingCredentials"
     assert "hint" in payload["error"]
+
+
+def test_resource_images_custom_type(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["resource", "images", "--type", "custom"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "DescribeCompShareCustomImages"
+
+
+def test_resource_gpu_inventory(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["resource", "gpu-inventory"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "DescribeCompShareGpuInventory"
+    assert fake.calls[-1][1]["Region"] == "cn-wlcb"
+    assert fake.calls[-1][1]["Zone"] == "cn-wlcb-01"
+
+
+def test_resource_gpu_inventory_filters_gpu_type(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["resource", "gpu-inventory", "--zone", "cn-sh2-02", "--gpu-type", "4090", "--json"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "DescribeCompShareGpuInventory"
+    assert fake.calls[-1][1]["Region"] == "cn-sh2"
+    assert fake.calls[-1][1]["Zone"] == "cn-sh2-02"
+    assert fake.calls[-1][1]["MachineTypes"] == ["4090"]

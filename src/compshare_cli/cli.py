@@ -492,13 +492,42 @@ def resource_images(
     image_type: Annotated[str, typer.Option("--type")] = "platform",
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
 ) -> None:
-    action = "DescribeCommunityImages" if image_type == "community" else "DescribeCompShareImages"
+    action = {"community": "DescribeCommunityImages", "custom": "DescribeCompShareCustomImages"}.get(image_type, "DescribeCompShareImages")
     try:
         response = get_client().invoke(action, {})
     except CliError as e:
         handle_cli_error(e, json_output)
     else:
         print_response(response, json_output)
+
+
+@resource_app.command("gpu-inventory")
+def resource_gpu_inventory(
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    gpu_type: Annotated[str | None, typer.Option("--gpu-type")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+) -> None:
+    try:
+        client = get_client()
+        zones_info = client.support_zones()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, zones_info)
+        else:
+            resolved_zone = zones_info[0]["Zone"]
+            region = zones_info[0]["Region"]
+        payload: dict[str, object] = {"Region": region, "Zone": resolved_zone}
+        if gpu_type:
+            payload["MachineTypes"] = [gpu_type]
+        response = client.invoke("DescribeCompShareGpuInventory", payload)
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output)
+    else:
+        if json_output:
+            print_json(response)
+        else:
+            inventory = response.get("InventorySet", [])
+            rows = [[item.get("MachineType", ""), item.get("Zone", ""), str(item.get("Count", 0))] for item in inventory]
+            print_table(["GPU TYPE", "ZONE", "COUNT"], rows)
 
 
 @resource_app.command("capacity")
