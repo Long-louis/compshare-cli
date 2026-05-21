@@ -32,6 +32,45 @@ class FakeCompShareClient:
             return {"RetCode": 0, "UHostSet": [{"UHostId": "uhost-1", "Name": "gpu", "State": "Stopped", "Zone": "cn-sh2-02"}]}
         if action == "GetCompShareInstancePrice":
             return {"RetCode": 0, "Price": 12.3}
+        if action == "CreateCompShareCustomImage":
+            return {"RetCode": 0, "CompShareImageId": "compshareImage-custom-1"}
+        if action == "DescribeCompShareCustomImages":
+            return {
+                "RetCode": 0,
+                "ImageSet": [
+                    {
+                        "CompShareImageId": "compshareImage-custom-1",
+                        "Name": "my-env",
+                        "Status": "Available",
+                        "ImageType": "Custom",
+                        "Size": 5120,
+                    }
+                ],
+            }
+        if action == "GetCompShareImageCreateProgress":
+            return {"RetCode": 0, "Process": 100.0, "TotalDuration": "3600", "RemainingDuration": "0"}
+        if action == "TerminateCompShareCustomImage":
+            return {"RetCode": 0}
+        if action == "ModifyCompShareInstanceName":
+            return {"RetCode": 0}
+        if action == "ReinstallCompShareInstance":
+            return {"RetCode": 0}
+        if action == "ResizeCompShareInstance":
+            return {"RetCode": 0}
+        if action == "UpdateCompShareStopScheduler":
+            return {"RetCode": 0}
+        if action == "AttachUS3":
+            return {"RetCode": 0}
+        if action == "AttachCompShareDisk":
+            return {"RetCode": 0, "UDiskId": "udisk-1"}
+        if action == "DetachCompShareDisk":
+            return {"RetCode": 0}
+        if action == "ResizeCompShareDisk":
+            return {"RetCode": 0}
+        if action == "DeleteCompShareDisk":
+            return {"RetCode": 0}
+        if action == "DescribeCompShareGpuInventory":
+            return {"RetCode": 0, "InventorySet": [{"MachineType": "4090", "Zone": "cn-sh2-02", "Count": 3}]}
         return {"RetCode": 0}
 
 
@@ -162,6 +201,47 @@ def test_price_create_calls_price_api(monkeypatch):
     assert result.exit_code == 0
     assert "Price" in result.stdout
     assert fake.calls[-1][0] == "GetCompShareInstancePrice"
+
+
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [
+        ("CreateCompShareCustomImage", {"CompShareImageId": "compshareImage-custom-1"}),
+        (
+            "DescribeCompShareCustomImages",
+            {
+                "ImageSet": [
+                    {
+                        "CompShareImageId": "compshareImage-custom-1",
+                        "Name": "my-env",
+                        "Status": "Available",
+                        "ImageType": "Custom",
+                        "Size": 5120,
+                    }
+                ]
+            },
+        ),
+        ("GetCompShareImageCreateProgress", {"Process": 100.0}),
+        ("TerminateCompShareCustomImage", {}),
+        ("ModifyCompShareInstanceName", {}),
+        ("ReinstallCompShareInstance", {}),
+        ("ResizeCompShareInstance", {}),
+        ("UpdateCompShareStopScheduler", {}),
+        ("AttachUS3", {}),
+        ("AttachCompShareDisk", {"UDiskId": "udisk-1"}),
+        ("DetachCompShareDisk", {}),
+        ("ResizeCompShareDisk", {}),
+        ("DeleteCompShareDisk", {}),
+        ("DescribeCompShareGpuInventory", {"InventorySet": [{"MachineType": "4090", "Zone": "cn-sh2-02", "Count": 3}]}),
+    ],
+)
+def test_fake_client_supports_planned_api_actions(action, expected):
+    fake = FakeCompShareClient()
+
+    response = fake.invoke(action, {})
+
+    for key, value in expected.items():
+        assert response[key] == value
 
 
 def test_instance_list_renders_instance(monkeypatch):
