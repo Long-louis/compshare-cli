@@ -1,6 +1,6 @@
 ---
 name: compshare-cli
-description: Use when preparing, renting, inspecting, starting, stopping, rebooting, or deleting CompShare GPU cloud instances with the compshare CLI, especially for code-agent workflows on remote GPU servers.
+description: Use when preparing, renting, inspecting, starting, stopping, rebooting, deleting, resizing, or reimaging CompShare GPU cloud instances; managing custom images and data disks; and mounting object storage — with the compshare CLI, especially for code-agent workflows on remote GPU servers.
 ---
 
 # compshare-cli
@@ -50,7 +50,7 @@ compshare instance list --agent
 compshare instance show <INSTANCE_ID> --agent
 ```
 
-Use `resource images` to discover `--image-id`. Use `resource instance-types` to discover valid GPU/machine types for a zone.
+Use `resource images` to discover `--image-id` (platform, community, or custom). Use `resource instance-types` to discover valid GPU/machine types for a zone. Use `resource gpu-inventory --json` to see real-time GPU availability per zone/type (raw JSON only, no `--agent`).
 
 ## New Instance Workflow
 
@@ -84,6 +84,60 @@ compshare instance create --zone <ZONE> --image-id <IMAGE_ID> --gpu-type <GPU_TY
 
 If capacity is unavailable or the API returns insufficient resources, try another zone, GPU type, or smaller resource request; otherwise ask the user whether to retry later.
 
+## Custom Image Workflow
+
+Create a custom image from a running instance:
+
+```bash
+compshare image create --instance-id <ID> --name <NAME> --agent
+```
+
+Check creation progress:
+
+```bash
+compshare image show-progress --image-id <ID> --agent
+```
+
+List custom images:
+
+```bash
+compshare image list --agent
+```
+
+Use a custom image to launch a new instance:
+
+```bash
+compshare instance create --image-id <CUSTOM_IMAGE_ID> ... --dry-run --agent
+```
+
+`image create` auto-resolves the zone. `image delete` is destructive and requires `--yes`.
+
+## Storage
+
+Two storage options:
+
+**Object storage (US3) mount** — attaches a US3 bucket to the instance:
+
+```bash
+compshare instance attach-us3 <INSTANCE_ID> --yes --agent
+```
+
+**Cloud data disk** — attaches a new SSD data disk to the instance:
+
+```bash
+compshare disk attach --instance-id <ID> --size <GiB> --yes --agent
+```
+
+Other disk operations:
+
+```bash
+compshare disk detach --disk-id <ID> --instance-id <ID> --yes --agent
+compshare disk resize --disk-id <ID> --size <GiB> --yes --agent
+compshare disk delete --disk-id <ID> --yes --agent
+```
+
+`--zone` is auto-resolved from `--instance-id` for `attach`/`detach`. All disk modifications require `--yes`.
+
 ## Instance Management
 
 ```bash
@@ -92,10 +146,14 @@ compshare instance show <INSTANCE_ID> --agent
 compshare instance start <INSTANCE_ID> --agent
 compshare instance stop <INSTANCE_ID> --agent
 compshare instance reboot <INSTANCE_ID> --agent
+compshare instance rename <INSTANCE_ID> --name <NAME> --agent
+compshare instance reinstall <INSTANCE_ID> --image-id <IMAGE_ID> --yes --agent
+compshare instance resize <INSTANCE_ID> --cpu <N> --memory <GiB> [--gpu <N>] [--gpu-type <TYPE>] --yes --agent
+compshare instance set-stop-scheduler <INSTANCE_ID> --after-hours <N> --agent
 compshare instance delete <INSTANCE_ID> --agent --yes
 ```
 
-`start` may incur cost. `delete` is destructive and requires explicit approval plus `--yes`. Ask before running lifecycle operations unless the user already gave a clear instruction.
+`start` may incur cost. `delete`, `reinstall`, and `resize` are destructive and require explicit approval plus `--yes`. `rename`, `reinstall`, `resize`, and `set-stop-scheduler` auto-resolve `--zone`. Ask before running lifecycle operations unless the user already gave a clear instruction.
 
 ## Common Mistakes
 
@@ -106,4 +164,7 @@ compshare instance delete <INSTANCE_ID> --agent --yes
 | Guessing image IDs | Discover them with `resource images` |
 | Guessing supported GPU types | Discover them with `resource instance-types` |
 | Treating dry-run as approval | Ask the user before live create |
+| Deleting/reinstalling/resizing without `--yes` | Always pass `--yes` for destructive operations |
+| Guessing custom image IDs | List them with `image list --agent` |
+| Using `--agent` on `gpu-inventory` | `gpu-inventory` only supports `--json` |
 | Printing secrets for debugging | Use masked `config get` or `doctor --agent` |

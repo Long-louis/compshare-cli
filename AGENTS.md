@@ -32,16 +32,21 @@ Credentials: `COMPSHARE_PUBLIC_KEY` / `COMPSHARE_PRIVATE_KEY` env vars (preferre
 | Group | Commands |
 |---|---|
 | `config` | `set`, `get`, `unset`, `path` |
-| `resource` | `zones`, `instance-types --zone`, `images --type platform\|community`, `machine-families`, `capacity` |
+| `resource` | `zones`, `instance-types --zone`, `images --type platform\|community\|custom`, `machine-families`, `capacity`, `gpu-inventory` |
 | `price` | `create` (same spec as `instance create`) |
-| `instance` | `create`, `list`, `show`, `start`, `stop`, `reboot`, `delete` |
+| `instance` | `create`, `list`, `show`, `start`, `stop`, `reboot`, `delete`, `rename`, `reinstall`, `resize`, `set-stop-scheduler`, `attach-us3` |
+| `image` | `create`, `list`, `show-progress`, `delete` |
+| `disk` | `attach`, `detach`, `resize`, `delete` |
 | top-level | `doctor` |
 
 ### Key Behaviors
 
 - **`instance create`**: requires `--dry-run` (no `--yes`) for preview, `--yes` for live creation. Live without `--yes` exits with error.
-- **`instance start/stop/reboot/delete`**: `--zone` is optional. When omitted, CLI auto-resolves via `DescribeCompShareInstance` lookup. `start` supports `--without-gpu` for cardless mode.
+- **`instance start/stop/reboot`**: `--zone` is optional. When omitted, CLI auto-resolves via `DescribeCompShareInstance` lookup. `start` supports `--without-gpu` for cardless mode.
 - **`instance delete`**: always requires `--yes`.
+- **`image create/delete`**: `image delete` requires `--yes`. `image create` auto-resolves zone from `--instance-id`.
+- **`disk attach/detach/resize/delete`**: require `--yes`. `attach`/`detach` auto-resolve `--zone` from `--instance-id` when omitted.
+- **`instance reinstall/resize/attach-us3`**: require `--yes`. `--zone` optional, auto-resolves.
 - **Zone resolution**: `region` is derived from `zone` via `DescribeCompShareSupportZone` API — never hardcoded.
 
 ## Output Modes
