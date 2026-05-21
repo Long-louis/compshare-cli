@@ -24,6 +24,8 @@ app.add_typer(price_app, name="price")
 image_app = typer.Typer(help="Manage CompShare custom images.", no_args_is_help=True)
 app.add_typer(instance_app, name="instance")
 app.add_typer(image_app, name="image")
+disk_app = typer.Typer(help="Manage CompShare data disks.", no_args_is_help=True)
+app.add_typer(disk_app, name="disk")
 
 CONFIG_KEYS = {"public-key": "public_key", "private-key": "private_key"}
 
@@ -828,6 +830,206 @@ def image_delete(
             "image_delete",
             "OK",
             {"image_id": image_id},
+            "destructive",
+            ok=True,
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
+@disk_app.command("attach")
+def disk_attach(
+    instance_id: Annotated[str, typer.Option("--instance-id", help="Instance ID to attach disk to.")],
+    size: Annotated[int, typer.Option("--size", help="Disk size in GiB.")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    disk_type: Annotated[str, typer.Option("--type", help="Disk type.")] = "CLOUD_SSD",
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm disk attachment.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    if not yes:
+        message = "disk attach requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "disk_attach",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm disk attachment."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        response = client.invoke("AttachCompShareDisk", {
+            "Region": region, "Zone": resolved_zone, "UHostId": instance_id, "Size": size, "Type": disk_type,
+        })
+        disk_id = response.get("UDiskId", "")
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "disk_attach",
+            f"Disk attached: {disk_id}",
+            {"instance_id": instance_id, "size_gib": size, "disk_id": disk_id},
+            "may-incur-cost",
+            ok=True,
+            commands=[command_suggestion("List instances", "compshare instance list --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo(f"Disk attached: {disk_id}")
+
+
+@disk_app.command("detach")
+def disk_detach(
+    disk_id: Annotated[str, typer.Option("--disk-id", help="Disk ID to detach.")],
+    instance_id: Annotated[str, typer.Option("--instance-id", help="Instance ID to detach disk from.")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm disk detachment.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    if not yes:
+        message = "disk detach requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "disk_detach",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm disk detachment."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        response = client.invoke("DetachCompShareDisk", {
+            "Region": region, "Zone": resolved_zone, "UHostId": instance_id, "UDiskId": disk_id,
+        })
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "disk_detach",
+            "OK",
+            {"disk_id": disk_id, "instance_id": instance_id},
+            "may-incur-cost",
+            ok=True,
+            commands=[command_suggestion("List instances", "compshare instance list --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
+@disk_app.command("resize")
+def disk_resize(
+    disk_id: Annotated[str, typer.Option("--disk-id", help="Disk ID to resize.")],
+    size: Annotated[int, typer.Option("--size", help="New disk size in GiB.")],
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm disk resize.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    if not yes:
+        message = "disk resize requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "disk_resize",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm disk resize."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
+    try:
+        response = get_client().invoke("ResizeCompShareDisk", {"UDiskId": disk_id, "Size": size})
+    except CliError as error:
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "disk_resize",
+            "OK",
+            {"disk_id": disk_id, "size_gib": size},
+            "may-incur-cost",
+            ok=True,
+            commands=[command_suggestion("List instances", "compshare instance list --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
+@disk_app.command("delete")
+def disk_delete(
+    disk_id: Annotated[str, typer.Option("--disk-id", help="Disk ID to delete.")],
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm deletion.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    if not yes:
+        message = "disk delete requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "disk_delete",
+                message,
+                {},
+                "destructive",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm deletion."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
+    try:
+        response = get_client().invoke("DeleteCompShareDisk", {"UDiskId": disk_id})
+    except CliError as error:
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "disk_delete",
+            "OK",
+            {"disk_id": disk_id},
             "destructive",
             ok=True,
         )
