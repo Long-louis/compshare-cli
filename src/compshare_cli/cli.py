@@ -655,9 +655,27 @@ def instance_set_stop_scheduler(
 def instance_attach_us3(
     instance_id: str,
     zone: Annotated[str | None, typer.Option("--zone")] = None,
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm attach US3.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
+    if not yes:
+        message = "instance attach-us3 requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "instance_attach_us3",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm attach US3."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
     try:
         client = get_client()
         if zone:

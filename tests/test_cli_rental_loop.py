@@ -820,9 +820,27 @@ def test_instance_set_stop_scheduler_with_at(monkeypatch):
 
 def test_instance_attach_us3(monkeypatch):
     fake = install_fake_client(monkeypatch)
-    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1"])
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1", "--yes"])
     assert result.exit_code == 0
     assert fake.calls[-1][0] == "AttachUS3"
+
+
+def test_instance_attach_us3_missing_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1"])
+    assert result.exit_code != 0
+    assert "--yes" in result.stderr
+    assert all(call[0] != "AttachUS3" for call in fake.calls)
+
+
+def test_instance_attach_us3_missing_yes_agent(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1", "--agent"])
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "AttachUS3" for call in fake.calls)
 
 
 def test_instance_reinstall_agent_output(monkeypatch):
