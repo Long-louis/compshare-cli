@@ -460,6 +460,194 @@ def instance_delete(
     invoke_instance_action("TerminateCompShareInstance", instance_id, zone, json_output, agent_output, "delete")
 
 
+@instance_app.command("rename")
+def instance_rename(
+    instance_id: str,
+    name: Annotated[str, typer.Option("--name")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        response = client.invoke("ModifyCompShareInstanceName", {"Region": region, "Zone": resolved_zone, "UHostId": instance_id, "Name": name})
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "instance_rename",
+            "OK",
+            {"instance_id": instance_id, "name": name},
+            "read-only",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
+@instance_app.command("reinstall")
+def instance_reinstall(
+    instance_id: str,
+    image_id: Annotated[str, typer.Option("--image-id")],
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        response = client.invoke("ReinstallCompShareInstance", {"Region": region, "Zone": resolved_zone, "UHostId": instance_id, "CompShareImageId": image_id})
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "instance_reinstall",
+            "OK",
+            {"instance_id": instance_id, "image_id": image_id},
+            "may-incur-cost",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
+@instance_app.command("resize")
+def instance_resize(
+    instance_id: str,
+    cpu: Annotated[int, typer.Option("--cpu")],
+    memory: Annotated[int, typer.Option("--memory", help="Memory in GiB.")],
+    gpu: Annotated[int | None, typer.Option("--gpu")] = None,
+    gpu_type: Annotated[str | None, typer.Option("--gpu-type")] = None,
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        payload: dict = {"Region": region, "Zone": resolved_zone, "UHostId": instance_id, "CPU": cpu, "Memory": memory * 1024}
+        if gpu is not None:
+            payload["GPU"] = gpu
+        if gpu_type is not None:
+            payload["GpuType"] = gpu_type
+        response = client.invoke("ResizeCompShareInstance", payload)
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "instance_resize",
+            "OK",
+            {"instance_id": instance_id, "cpu": cpu, "memory_gib": memory},
+            "may-incur-cost",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
+@instance_app.command("set-stop-scheduler")
+def instance_set_stop_scheduler(
+    instance_id: str,
+    at: Annotated[str | None, typer.Option("--at", help="Stop timestamp.")] = None,
+    after_hours: Annotated[int | None, typer.Option("--after-hours", help="Stop after N hours.")] = None,
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    if at is None and after_hours is None:
+        message = "Provide either --at TIMESTAMP or --after-hours HOURS"
+        if agent_output:
+            print_json(agent_envelope("instance_set_stop_scheduler", message, {}, "none", ok=False, warnings=[message], next_actions=["Provide --at or --after-hours"]))
+        elif json_output:
+            print_json({"error": {"type": "MissingArgument", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
+    stop_time = at if at is not None else str(after_hours)
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        response = client.invoke("UpdateCompShareStopScheduler", {"Region": region, "Zone": resolved_zone, "UHostId": instance_id, "StopTime": stop_time})
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "instance_set_stop_scheduler",
+            f"Stop scheduler set: {stop_time}",
+            {"instance_id": instance_id, "stop_time": stop_time},
+            "read-only",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo(f"Stop scheduler set: {stop_time}")
+
+
+@instance_app.command("attach-us3")
+def instance_attach_us3(
+    instance_id: str,
+    zone: Annotated[str | None, typer.Option("--zone")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        client = get_client()
+        if zone:
+            region, resolved_zone = resolve_zone_region(zone, None, client.support_zones())
+        else:
+            region, resolved_zone = _resolve_instance_zone(instance_id, client)
+        response = client.invoke("AttachUS3", {"Region": region, "Zone": resolved_zone, "UHostId": instance_id})
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "instance_attach_us3",
+            "OK",
+            {"instance_id": instance_id},
+            "may-incur-cost",
+            ok=True,
+            commands=[command_suggestion("Show instance", f"compshare instance show {instance_id} --agent", "safe", False)],
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
+
+
 @image_app.command("create")
 def image_create(
     instance_id: Annotated[str, typer.Option("--instance-id", help="Instance ID to create image from.")],

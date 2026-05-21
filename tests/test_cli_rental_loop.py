@@ -723,3 +723,88 @@ def test_resource_gpu_inventory_filters_gpu_type(monkeypatch):
     assert fake.calls[-1][1]["Region"] == "cn-sh2"
     assert fake.calls[-1][1]["Zone"] == "cn-sh2-02"
     assert fake.calls[-1][1]["MachineTypes"] == ["4090"]
+
+
+def test_instance_rename(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "rename", "uhost-1", "--name", "new-name"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ModifyCompShareInstanceName"
+    assert fake.calls[-1][1]["Name"] == "new-name"
+
+
+def test_instance_reinstall(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ReinstallCompShareInstance"
+    assert fake.calls[-1][1]["CompShareImageId"] == "compshareImage-xxx"
+
+
+def test_instance_resize(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ResizeCompShareInstance"
+    assert fake.calls[-1][1]["CPU"] == 32
+    assert fake.calls[-1][1]["Memory"] == 131072
+
+
+def test_instance_resize_with_gpu(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "16", "--memory", "64", "--gpu", "1", "--gpu-type", "4090"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ResizeCompShareInstance"
+    assert fake.calls[-1][1]["GPU"] == 1
+    assert fake.calls[-1][1]["GpuType"] == "4090"
+
+
+def test_instance_set_stop_scheduler_requires_time(monkeypatch):
+    install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "set-stop-scheduler", "uhost-1"])
+    assert result.exit_code != 0
+    assert "--at" in result.stdout or "--after-hours" in result.stdout or "--at" in result.stderr or "--after-hours" in result.stderr
+
+
+def test_instance_set_stop_scheduler(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "set-stop-scheduler", "uhost-1", "--after-hours", "2"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "UpdateCompShareStopScheduler"
+
+
+def test_instance_set_stop_scheduler_with_at(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "set-stop-scheduler", "uhost-1", "--at", "2025-12-31 23:59:59"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "UpdateCompShareStopScheduler"
+    assert fake.calls[-1][1]["StopTime"] == "2025-12-31 23:59:59"
+
+
+def test_instance_attach_us3(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "AttachUS3"
+
+
+def test_instance_reinstall_agent_output(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx", "--agent"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["cost_risk"] == "may-incur-cost"
+    assert payload["data"]["instance_id"] == "uhost-1"
+    assert payload["data"]["image_id"] == "compshareImage-xxx"
+    assert any(cmd["label"] == "Show instance" for cmd in payload["commands"])
+
+
+def test_instance_rename_with_explicit_zone_skips_lookup(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "rename", "uhost-1", "--name", "new-name", "--zone", "cn-sh2-02"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ModifyCompShareInstanceName"
+    assert fake.calls[-1][1]["Zone"] == "cn-sh2-02"
+    assert fake.calls[-1][1]["Region"] == "cn-sh2"
+    assert all(call[0] != "DescribeCompShareInstance" for call in fake.calls)
