@@ -513,6 +513,8 @@ def resource_gpu_inventory(
         if zone:
             region, resolved_zone = resolve_zone_region(zone, None, zones_info)
         else:
+            if not zones_info:
+                raise ValueError("No zones available from API")
             resolved_zone = zones_info[0]["Zone"]
             region = zones_info[0]["Region"]
         payload: dict[str, object] = {"Region": region, "Zone": resolved_zone}

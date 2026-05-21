@@ -699,6 +699,20 @@ def test_resource_gpu_inventory(monkeypatch):
     assert fake.calls[-1][0] == "DescribeCompShareGpuInventory"
     assert fake.calls[-1][1]["Region"] == "cn-wlcb"
     assert fake.calls[-1][1]["Zone"] == "cn-wlcb-01"
+    assert "4090" in result.stdout
+    assert "cn-sh2-02" in result.stdout
+    assert "3" in result.stdout
+
+
+def test_resource_gpu_inventory_empty_zones(monkeypatch):
+    class EmptyZonesFake(FakeCompShareClient):
+        def support_zones(self):
+            self.calls.append(("DescribeCompShareSupportZone", {}))
+            return []
+    install_specific_fake_client(monkeypatch, EmptyZonesFake())
+    result = runner.invoke(cli.app, ["resource", "gpu-inventory"])
+    assert result.exit_code != 0
+    assert "No zones" in result.stderr
 
 
 def test_resource_gpu_inventory_filters_gpu_type(monkeypatch):
