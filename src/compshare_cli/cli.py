@@ -21,7 +21,9 @@ instance_app = typer.Typer(help="Manage CompShare instances.", no_args_is_help=T
 app.add_typer(config_app, name="config")
 app.add_typer(resource_app, name="resource")
 app.add_typer(price_app, name="price")
+image_app = typer.Typer(help="Manage CompShare custom images.", no_args_is_help=True)
 app.add_typer(instance_app, name="instance")
+app.add_typer(image_app, name="image")
 
 CONFIG_KEYS = {"public-key": "public_key", "private-key": "private_key"}
 
@@ -456,6 +458,143 @@ def instance_delete(
         typer.echo("instance delete requires --yes")
         raise typer.Exit(1)
     invoke_instance_action("TerminateCompShareInstance", instance_id, zone, json_output, agent_output, "delete")
+
+
+@image_app.command("create")
+def image_create(
+    instance_id: Annotated[str, typer.Option("--instance-id", help="Instance ID to create image from.")],
+    name: Annotated[str, typer.Option("--name", help="Custom image name.")],
+    description: Annotated[str | None, typer.Option("--description", help="Image description.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        client = get_client()
+        region, zone = _resolve_instance_zone(instance_id, client)
+        payload: dict[str, object] = {"Region": region, "Zone": zone, "UHostId": instance_id, "Name": name}
+        if description is not None:
+            payload["Description"] = description
+        response = client.invoke("CreateCompShareCustomImage", payload)
+        image_id = response.get("CompShareImageId", "")
+    except CliError as error:
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        commands = [
+            command_suggestion("Check image progress", f"compshare image show-progress --image-id {image_id} --agent", "read-only", False),
+        ]
+        envelope = agent_envelope(
+            "image_create",
+            f"Image creation started: {image_id}",
+            {"image_id": image_id},
+            "may-incur-cost",
+            ok=True,
+            commands=commands,
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo(f"Image creation started: {image_id}")
+
+
+@image_app.command("list")
+def image_list(
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        response = get_client().invoke("DescribeCompShareCustomImages", {})
+    except CliError as error:
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        images = response.get("ImageSet", [])
+        items = [{"id": img.get("CompShareImageId", ""), "name": img.get("Name", ""), "status": img.get("Status", "")} for img in images]
+        envelope = agent_envelope(
+            "image_list",
+            f"Found {len(items)} custom images.",
+            {"images": items},
+            "read-only",
+            ok=True,
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    rows = [[img.get("CompShareImageId", ""), img.get("Name", ""), img.get("Status", ""), str(img.get("Size", 0))] for img in response.get("ImageSet", [])]
+    print_table(["ID", "NAME", "STATUS", "SIZE(MB)"], rows)
+
+
+@image_app.command("show-progress")
+def image_show_progress(
+    image_id: Annotated[str, typer.Option("--image-id", help="Custom image ID.")],
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    try:
+        response = get_client().invoke("GetCompShareImageCreateProgress", {"CompShareImageId": image_id})
+        process = response.get("Process", 0)
+    except CliError as error:
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "image_show_progress",
+            f"Progress: {process}%",
+            {"image_id": image_id, "process": process},
+            "read-only",
+            ok=True,
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo(f"Progress: {process}%")
+
+
+@image_app.command("delete")
+def image_delete(
+    image_id: Annotated[str, typer.Option("--image-id", help="Custom image ID.")],
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm deletion.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
+    agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
+) -> None:
+    if not yes:
+        message = "image delete requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "image_delete",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm deletion."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message)
+        raise typer.Exit(1)
+    try:
+        response = get_client().invoke("TerminateCompShareCustomImage", {"CompShareImageId": image_id})
+    except CliError as error:
+        handle_cli_error(error, json_output, agent_output)
+    if agent_output:
+        envelope = agent_envelope(
+            "image_delete",
+            "OK",
+            {"image_id": image_id},
+            "may-incur-cost",
+            ok=True,
+        )
+        print_json(envelope)
+        return
+    if json_output:
+        print_json(response)
+        return
+    typer.echo("OK")
 
 
 @resource_app.command("machine-families")
