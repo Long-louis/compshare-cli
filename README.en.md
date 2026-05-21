@@ -144,6 +144,29 @@ Most commands accept `--json` for automation. JSON output is intended to be pars
   4. `compshare instance create ... --dry-run --agent`
   5. `compshare instance create ... --agent --yes` after explicit approval.
 
+## Releases
+
+This repository uses `CHANGELOG.md` as the single source of truth for GitHub release notes.
+
+Recommended release flow:
+
+1. Update the version in `pyproject.toml` and `src/compshare_cli/__init__.py`.
+2. Move the `Unreleased` section in `CHANGELOG.md` into a versioned section such as `## [0.3.0] - 2026-05-22`.
+3. Commit and push the changes to `master`.
+4. Create and push a tag:
+
+```bash
+git tag -a v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
+```
+
+5. GitHub Actions will automatically:
+   - run `uv run pytest -v`
+   - extract the matching version section from `CHANGELOG.md`
+   - create the GitHub release
+
+If `CHANGELOG.md` does not contain the matching version section, the automated release job fails on purpose so that a version is never published without notes.
+
 ## References
 
 - [CompShare operation examples](https://www.compshare.cn/docs/gpus/operationexample)

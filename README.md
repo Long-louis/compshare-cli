@@ -103,6 +103,29 @@ compshare doctor --agent
 
 `--agent --debug` 保留给调试场景，诊断信息不能泄露密钥。
 
+## 版本发布
+
+仓库使用 `CHANGELOG.md` 作为 GitHub Release 文案的唯一来源。
+
+推荐发版流程：
+
+1. 更新 `pyproject.toml` 和 `src/compshare_cli/__init__.py` 里的版本号。
+2. 把 `CHANGELOG.md` 里的 `Unreleased` 整理成版本段落，例如 `## [0.3.0] - 2026-05-22`。
+3. 提交并推送代码到 `master`。
+4. 创建并推送 tag：
+
+```bash
+git tag -a v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
+```
+
+5. GitHub Actions 会自动：
+   - 运行 `uv run pytest -v`
+   - 从 `CHANGELOG.md` 提取对应版本段落
+   - 创建 GitHub Release
+
+如果 `CHANGELOG.md` 没有对应版本段落，自动发布会失败，这样可以避免发布出没有说明的版本。
+
 ## 智能体推荐入口
 
 让 code agent 使用这个 CLI 时，第一条命令应该是：
