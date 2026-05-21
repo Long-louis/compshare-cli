@@ -735,15 +735,33 @@ def test_instance_rename(monkeypatch):
 
 def test_instance_reinstall(monkeypatch):
     fake = install_fake_client(monkeypatch)
-    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx"])
+    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx", "--yes"])
     assert result.exit_code == 0
     assert fake.calls[-1][0] == "ReinstallCompShareInstance"
     assert fake.calls[-1][1]["CompShareImageId"] == "compshareImage-xxx"
 
 
+def test_instance_reinstall_missing_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx"])
+    assert result.exit_code != 0
+    assert "--yes" in result.stderr
+    assert all(call[0] != "ReinstallCompShareInstance" for call in fake.calls)
+
+
+def test_instance_reinstall_missing_yes_agent(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx", "--agent"])
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "ReinstallCompShareInstance" for call in fake.calls)
+
+
 def test_instance_resize(monkeypatch):
     fake = install_fake_client(monkeypatch)
-    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128"])
+    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128", "--yes"])
     assert result.exit_code == 0
     assert fake.calls[-1][0] == "ResizeCompShareInstance"
     assert fake.calls[-1][1]["CPU"] == 32
@@ -752,11 +770,29 @@ def test_instance_resize(monkeypatch):
 
 def test_instance_resize_with_gpu(monkeypatch):
     fake = install_fake_client(monkeypatch)
-    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "16", "--memory", "64", "--gpu", "1", "--gpu-type", "4090"])
+    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "16", "--memory", "64", "--gpu", "1", "--gpu-type", "4090", "--yes"])
     assert result.exit_code == 0
     assert fake.calls[-1][0] == "ResizeCompShareInstance"
     assert fake.calls[-1][1]["GPU"] == 1
     assert fake.calls[-1][1]["GpuType"] == "4090"
+
+
+def test_instance_resize_missing_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128"])
+    assert result.exit_code != 0
+    assert "--yes" in result.stderr
+    assert all(call[0] != "ResizeCompShareInstance" for call in fake.calls)
+
+
+def test_instance_resize_missing_yes_agent(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128", "--agent"])
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "ResizeCompShareInstance" for call in fake.calls)
 
 
 def test_instance_set_stop_scheduler_requires_time(monkeypatch):
@@ -771,6 +807,7 @@ def test_instance_set_stop_scheduler(monkeypatch):
     result = runner.invoke(cli.app, ["instance", "set-stop-scheduler", "uhost-1", "--after-hours", "2"])
     assert result.exit_code == 0
     assert fake.calls[-1][0] == "UpdateCompShareStopScheduler"
+    assert fake.calls[-1][1]["StopTime"] == "2"
 
 
 def test_instance_set_stop_scheduler_with_at(monkeypatch):
@@ -790,7 +827,7 @@ def test_instance_attach_us3(monkeypatch):
 
 def test_instance_reinstall_agent_output(monkeypatch):
     fake = install_fake_client(monkeypatch)
-    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx", "--agent"])
+    result = runner.invoke(cli.app, ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx", "--yes", "--agent"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["ok"] is True

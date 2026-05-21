@@ -499,9 +499,27 @@ def instance_reinstall(
     instance_id: str,
     image_id: Annotated[str, typer.Option("--image-id")],
     zone: Annotated[str | None, typer.Option("--zone")] = None,
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm reinstall.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
+    if not yes:
+        message = "instance reinstall requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "instance_reinstall",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm reinstall."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
     try:
         client = get_client()
         if zone:
@@ -536,9 +554,27 @@ def instance_resize(
     gpu: Annotated[int | None, typer.Option("--gpu")] = None,
     gpu_type: Annotated[str | None, typer.Option("--gpu-type")] = None,
     zone: Annotated[str | None, typer.Option("--zone")] = None,
+    yes: Annotated[bool, typer.Option("--yes", help="Confirm resize.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Output JSON.")] = False,
     agent_output: Annotated[bool, typer.Option("--agent", help="Agent-oriented JSON.")] = False,
 ) -> None:
+    if not yes:
+        message = "instance resize requires --yes"
+        if agent_output:
+            print_json(agent_envelope(
+                "instance_resize",
+                message,
+                {},
+                "may-incur-cost",
+                ok=False,
+                warnings=[message],
+                next_actions=["Add --yes to confirm resize."],
+            ))
+        elif json_output:
+            print_json({"error": {"type": "ConfirmationRequired", "message": message}})
+        else:
+            typer.echo(message, err=True)
+        raise typer.Exit(1)
     try:
         client = get_client()
         if zone:
