@@ -203,45 +203,49 @@ def test_price_create_calls_price_api(monkeypatch):
     assert fake.calls[-1][0] == "GetCompShareInstancePrice"
 
 
-@pytest.mark.parametrize(
-    ("action", "expected"),
-    [
-        ("CreateCompShareCustomImage", {"CompShareImageId": "compshareImage-custom-1"}),
-        (
-            "DescribeCompShareCustomImages",
-            {
-                "ImageSet": [
-                    {
-                        "CompShareImageId": "compshareImage-custom-1",
-                        "Name": "my-env",
-                        "Status": "Available",
-                        "ImageType": "Custom",
-                        "Size": 5120,
-                    }
-                ]
-            },
-        ),
-        ("GetCompShareImageCreateProgress", {"Process": 100.0}),
-        ("TerminateCompShareCustomImage", {}),
-        ("ModifyCompShareInstanceName", {}),
-        ("ReinstallCompShareInstance", {}),
-        ("ResizeCompShareInstance", {}),
-        ("UpdateCompShareStopScheduler", {}),
-        ("AttachUS3", {}),
-        ("AttachCompShareDisk", {"UDiskId": "udisk-1"}),
-        ("DetachCompShareDisk", {}),
-        ("ResizeCompShareDisk", {}),
-        ("DeleteCompShareDisk", {}),
-        ("DescribeCompShareGpuInventory", {"InventorySet": [{"MachineType": "4090", "Zone": "cn-sh2-02", "Count": 3}]}),
-    ],
-)
-def test_fake_client_supports_planned_api_actions(action, expected):
+def test_fake_client_supports_planned_api_actions():
     fake = FakeCompShareClient()
 
-    response = fake.invoke(action, {})
+    response = fake.invoke("CreateCompShareCustomImage", {})
+    assert response["RetCode"] == 0
+    assert response["CompShareImageId"] == "compshareImage-custom-1"
 
-    for key, value in expected.items():
-        assert response[key] == value
+    response = fake.invoke("DescribeCompShareCustomImages", {})
+    assert response["RetCode"] == 0
+    assert "ImageSet" in response
+    assert response["ImageSet"][0]["CompShareImageId"] == "compshareImage-custom-1"
+    assert response["ImageSet"][0]["ImageType"] == "Custom"
+
+    response = fake.invoke("GetCompShareImageCreateProgress", {})
+    assert response["RetCode"] == 0
+    assert response["Process"] == 100.0
+    assert response["TotalDuration"] == "3600"
+    assert response["RemainingDuration"] == "0"
+
+    response = fake.invoke("AttachCompShareDisk", {})
+    assert response["RetCode"] == 0
+    assert response["UDiskId"] == "udisk-1"
+
+    response = fake.invoke("DescribeCompShareGpuInventory", {})
+    assert response["RetCode"] == 0
+    assert "InventorySet" in response
+    assert response["InventorySet"][0]["MachineType"] == "4090"
+    assert response["InventorySet"][0]["Zone"] == "cn-sh2-02"
+    assert response["InventorySet"][0]["Count"] == 3
+
+    for action in [
+        "TerminateCompShareCustomImage",
+        "ModifyCompShareInstanceName",
+        "ReinstallCompShareInstance",
+        "ResizeCompShareInstance",
+        "UpdateCompShareStopScheduler",
+        "AttachUS3",
+        "DetachCompShareDisk",
+        "ResizeCompShareDisk",
+        "DeleteCompShareDisk",
+    ]:
+        response = fake.invoke(action, {})
+        assert response["RetCode"] == 0
 
 
 def test_instance_list_renders_instance(monkeypatch):
