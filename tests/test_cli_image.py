@@ -1,6 +1,5 @@
 import json
 
-import pytest
 from typer.testing import CliRunner
 from compshare_cli import cli
 from compshare_cli.config import Credentials
@@ -110,7 +109,61 @@ def test_image_delete_requires_yes(monkeypatch):
     install_fake_client(monkeypatch)
     result = runner.invoke(cli.app, ["image", "delete", "--image-id", "compshareImage-custom-1"])
     assert result.exit_code != 0
-    assert "--yes" in result.stdout
+    assert "requires --yes" in result.stderr
+    assert "requires --yes" not in result.stdout
+
+
+def test_image_delete_agent_risk_label(monkeypatch):
+    install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["image", "delete", "--image-id", "compshareImage-custom-1", "--agent"])
+    assert result.exit_code != 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is False
+    assert data["cost_risk"] == "destructive"
+
+
+def test_image_create_handles_zone_value_error(monkeypatch):
+    class FakeWithUnknownZone(FakeCompShareClient):
+        def invoke(self, action, payload):
+            if action == "DescribeCompShareInstance":
+                return {"RetCode": 0, "UHostSet": [{"UHostId": "uhost-bad", "Name": "gpu", "State": "Stopped", "Zone": "unknown-zone"}]}
+            return super().invoke(action, payload)
+
+    fake = FakeWithUnknownZone()
+    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
+    monkeypatch.setattr(cli, "CompShareClient", lambda credentials: fake)
+    result = runner.invoke(cli.app, [
+        "image", "create",
+        "--instance-id", "uhost-bad",
+        "--name", "my-image",
+        "--json",
+    ])
+    assert result.exit_code != 0
+    data = json.loads(result.stdout)
+    assert "error" in data
+    assert "unknown-zone" in result.stdout
+
+
+def test_image_create_handles_zone_value_error_agent(monkeypatch):
+    class FakeWithUnknownZone(FakeCompShareClient):
+        def invoke(self, action, payload):
+            if action == "DescribeCompShareInstance":
+                return {"RetCode": 0, "UHostSet": [{"UHostId": "uhost-bad", "Name": "gpu", "State": "Stopped", "Zone": "unknown-zone"}]}
+            return super().invoke(action, payload)
+
+    fake = FakeWithUnknownZone()
+    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
+    monkeypatch.setattr(cli, "CompShareClient", lambda credentials: fake)
+    result = runner.invoke(cli.app, [
+        "image", "create",
+        "--instance-id", "uhost-bad",
+        "--name", "my-image",
+        "--agent",
+    ])
+    assert result.exit_code != 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is False
+    assert "unknown-zone" in data["data"]["error"]
 
 
 def test_image_delete_yes_calls_api(monkeypatch):

@@ -476,8 +476,8 @@ def image_create(
             payload["Description"] = description
         response = client.invoke("CreateCompShareCustomImage", payload)
         image_id = response.get("CompShareImageId", "")
-    except CliError as error:
-        handle_cli_error(error, json_output, agent_output)
+    except (CliError, ValueError) as error:
+        handle_cli_error(error if isinstance(error, CliError) else CliError(str(error)), json_output, agent_output)
     if agent_output:
         commands = [
             command_suggestion("Check image progress", f"compshare image show-progress --image-id {image_id} --agent", "read-only", False),
@@ -567,7 +567,7 @@ def image_delete(
                 "image_delete",
                 message,
                 {},
-                "may-incur-cost",
+                "destructive",
                 ok=False,
                 warnings=[message],
                 next_actions=["Add --yes to confirm deletion."],
@@ -575,7 +575,7 @@ def image_delete(
         elif json_output:
             print_json({"error": {"type": "ConfirmationRequired", "message": message}})
         else:
-            typer.echo(message)
+            typer.echo(message, err=True)
         raise typer.Exit(1)
     try:
         response = get_client().invoke("TerminateCompShareCustomImage", {"CompShareImageId": image_id})
@@ -586,7 +586,7 @@ def image_delete(
             "image_delete",
             "OK",
             {"image_id": image_id},
-            "may-incur-cost",
+            "destructive",
             ok=True,
         )
         print_json(envelope)
