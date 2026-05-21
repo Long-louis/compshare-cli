@@ -22,13 +22,18 @@ class CreateInstanceOptions:
     quantity: int = 1
 
 
-def resolve_zone_region(zone: str, region: str | None, zones: list[dict[str, Any]]) -> tuple[str, str]:
+def resolve_zone_region(
+    zone: str, region: str | None, zones: list[dict[str, Any]]
+) -> tuple[str, str]:
     matches = [item for item in zones if item.get("Zone") == zone]
     if not matches:
         raise ValueError(f"Unknown zone: {zone}")
     resolved_region = str(matches[0].get("Region"))
     if region and region != resolved_region:
-        raise ValueError(f"Zone {zone} does not belong to region {region}; expected {resolved_region}")
+        raise ValueError(
+            f"Zone {zone} does not belong to region {region}; "
+            f"expected {resolved_region}"
+        )
     return resolved_region, zone
 
 
@@ -60,7 +65,9 @@ def build_create_instance_request(options: CreateInstanceOptions) -> dict[str, A
         "MinimalCpuPlatform": options.minimal_cpu_platform,
         "ChargeType": options.charge_type,
         "Quantity": options.quantity,
-        "Disks": [{"IsBoot": True, "Size": options.disk_size_gib, "Type": options.disk_type}],
+        "Disks": [
+            {"IsBoot": True, "Size": options.disk_size_gib, "Type": options.disk_type}
+        ],
     }
     if options.name:
         request["Name"] = options.name

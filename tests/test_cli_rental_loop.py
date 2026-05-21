@@ -2,10 +2,10 @@ import json
 
 import pytest
 from typer.testing import CliRunner
+
 from compshare_cli import cli
 from compshare_cli.config import Credentials
 from compshare_cli.errors import CliError
-
 
 runner = CliRunner()
 
@@ -29,7 +29,17 @@ class FakeCompShareClient:
         if action == "CreateCompShareInstance":
             return {"RetCode": 0, "UHostIds": ["uhost-1"]}
         if action == "DescribeCompShareInstance":
-            return {"RetCode": 0, "UHostSet": [{"UHostId": "uhost-1", "Name": "gpu", "State": "Stopped", "Zone": "cn-sh2-02"}]}
+            return {
+                "RetCode": 0,
+                "UHostSet": [
+                    {
+                        "UHostId": "uhost-1",
+                        "Name": "gpu",
+                        "State": "Stopped",
+                        "Zone": "cn-sh2-02",
+                    }
+                ],
+            }
         if action == "GetCompShareInstancePrice":
             return {"RetCode": 0, "Price": 12.3}
         return {"RetCode": 0}
@@ -37,13 +47,17 @@ class FakeCompShareClient:
 
 def install_fake_client(monkeypatch):
     fake = FakeCompShareClient()
-    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
+    monkeypatch.setattr(
+        cli, "load_credentials", lambda: Credentials("public", "private")
+    )
     monkeypatch.setattr(cli, "CompShareClient", lambda credentials: fake)
     return fake
 
 
 def install_specific_fake_client(monkeypatch, fake):
-    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
+    monkeypatch.setattr(
+        cli, "load_credentials", lambda: Credentials("public", "private")
+    )
     monkeypatch.setattr(cli, "CompShareClient", lambda credentials: fake)
     return fake
 
@@ -202,10 +216,14 @@ def test_instance_lifecycle_actions(monkeypatch, command, action):
         ("reboot", "RebootCompShareInstance"),
     ],
 )
-def test_instance_lifecycle_with_explicit_zone_skips_lookup(monkeypatch, command, action):
+def test_instance_lifecycle_with_explicit_zone_skips_lookup(
+    monkeypatch, command, action
+):
     fake = install_fake_client(monkeypatch)
 
-    result = runner.invoke(cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"])
+    result = runner.invoke(
+        cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"]
+    )
 
     assert result.exit_code == 0
     assert fake.calls[-1][0] == action
@@ -256,7 +274,10 @@ def test_missing_credentials_exits_cleanly(monkeypatch):
 
 
 def test_resource_wrapper_api_failure_exits_cleanly(monkeypatch):
-    install_specific_fake_client(monkeypatch, FakeCompShareClient(fail_action="DescribeCompShareMachineTypeFamilies"))
+    install_specific_fake_client(
+        monkeypatch,
+        FakeCompShareClient(fail_action="DescribeCompShareMachineTypeFamilies"),
+    )
 
     result = runner.invoke(cli.app, ["resource", "machine-families"])
 
@@ -269,7 +290,10 @@ def test_resource_wrapper_api_failure_exits_cleanly(monkeypatch):
     ("args", "action"),
     [
         (["resource", "machine-families"], "DescribeCompShareMachineTypeFamilies"),
-        (["resource", "instance-types", "--zone", "cn-sh2-02", "--gpu-type", "4090"], "DescribeAvailableCompShareInstanceTypes"),
+        (
+            ["resource", "instance-types", "--zone", "cn-sh2-02", "--gpu-type", "4090"],
+            "DescribeAvailableCompShareInstanceTypes",
+        ),
         (["resource", "images", "--type", "platform"], "DescribeCompShareImages"),
         (["resource", "images", "--type", "community"], "DescribeCommunityImages"),
     ],
@@ -287,7 +311,10 @@ def test_resource_wrappers_call_expected_actions(monkeypatch, args, action):
 def test_instance_types_resolves_region_and_filters_machine_types(monkeypatch):
     fake = install_fake_client(monkeypatch)
 
-    result = runner.invoke(cli.app, ["resource", "instance-types", "--zone", "cn-sh2-02", "--gpu-type", "4090"])
+    result = runner.invoke(
+        cli.app,
+        ["resource", "instance-types", "--zone", "cn-sh2-02", "--gpu-type", "4090"],
+    )
 
     assert result.exit_code == 0
     assert fake.calls[-1] == (
@@ -343,9 +370,12 @@ def test_create_command_from_payload_quotes_spaced_values():
     assert "--image-id 'my test image'" in cmd or '--image-id "my test image"' in cmd
     assert "my test image" in cmd
     # Ensure no unquoted space in the middle
-    assert "my test image" not in cmd or cmd.count("my test image") == 1  # simple presence check
+    assert (
+        "my test image" not in cmd or cmd.count("my test image") == 1
+    )  # simple presence check
     # Actually check that the command can be split safely
     import shlex
+
     parts = shlex.split(cmd)
     # Verify that --image-id is followed by the quoted value as a single token
     idx = parts.index("--image-id") if "--image-id" in parts else -1
@@ -527,7 +557,7 @@ def test_instance_create_live_agent_requires_yes(monkeypatch):
 
 
 def test_instance_show_agent_outputs_detail_and_command(monkeypatch):
-    fake = install_fake_client(monkeypatch)
+    install_fake_client(monkeypatch)
 
     result = runner.invoke(cli.app, ["instance", "show", "uhost-1", "--agent"])
 
@@ -575,7 +605,7 @@ def test_instance_lifecycle_agent_outputs(monkeypatch, cmd, action, expected_ris
         assert matching_call[1].get("WithoutGpu") is True
     # Should have a follow-up command (Show instance)
     assert len(payload.get("commands", [])) >= 1
-    assert any(cmd_sug["label"] == f"Show instance" for cmd_sug in payload["commands"])
+    assert any(cmd_sug["label"] == "Show instance" for cmd_sug in payload["commands"])
 
 
 def test_missing_credentials_agent_error_is_parseable(monkeypatch):

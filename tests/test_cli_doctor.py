@@ -22,13 +22,20 @@ class FakeDoctorClient:
             "RetCode": 0,
             "TotalCount": 1,
             "UHostSet": [
-                {"UHostId": "uhost-1", "Name": "stopped-gpu", "State": "Stopped", "Zone": "cn-sh2-02"}
+                {
+                    "UHostId": "uhost-1",
+                    "Name": "stopped-gpu",
+                    "State": "Stopped",
+                    "Zone": "cn-sh2-02",
+                }
             ],
         }
 
 
 def test_doctor_agent_success(monkeypatch):
-    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
+    monkeypatch.setattr(
+        cli, "load_credentials", lambda: Credentials("public", "private")
+    )
     monkeypatch.setattr(cli, "credential_source", lambda: "config")
     monkeypatch.setattr(cli, "CompShareClient", lambda credentials: FakeDoctorClient())
 

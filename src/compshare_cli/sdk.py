@@ -8,12 +8,17 @@ from ucloud.core import exc
 from .config import Credentials
 from .errors import CliError
 
-
 DEFAULT_BASE_URL = "https://api.compshare.cn"
 
 
 class CompShareClient:
-    def __init__(self, credentials: Credentials, *, base_url: str = DEFAULT_BASE_URL, sdk_client: Any | None = None) -> None:
+    def __init__(
+        self,
+        credentials: Credentials,
+        *,
+        base_url: str = DEFAULT_BASE_URL,
+        sdk_client: Any | None = None,
+    ) -> None:
         self.credentials = credentials
         self.base_url = base_url
         self._sdk_client = sdk_client
@@ -55,5 +60,9 @@ class CompShareClient:
     def _raise_for_ret_code(response: dict[str, Any]) -> None:
         ret_code = response.get("RetCode", 0)
         if ret_code not in (0, None):
-            message = str(response.get("Message") or f"CompShare API returned RetCode {ret_code}")
-            raise CliError(message, type_name="CompShareApiError", ret_code=int(ret_code))
+            message = str(
+                response.get("Message") or f"CompShare API returned RetCode {ret_code}"
+            )
+            raise CliError(
+                message, type_name="CompShareApiError", ret_code=int(ret_code)
+            )

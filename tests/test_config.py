@@ -1,6 +1,12 @@
 from pathlib import Path
 
-from compshare_cli.config import ConfigStore, Credentials, load_credentials, credential_source, redact_secret
+from compshare_cli.config import (
+    ConfigStore,
+    Credentials,
+    credential_source,
+    load_credentials,
+    redact_secret,
+)
 
 
 def test_env_credentials_override_config(monkeypatch, tmp_path: Path):

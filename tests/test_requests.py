@@ -1,7 +1,10 @@
 import pytest
 
-from compshare_cli.requests import CreateInstanceOptions, build_create_instance_request, resolve_zone_region
-
+from compshare_cli.requests import (
+    CreateInstanceOptions,
+    build_create_instance_request,
+    resolve_zone_region,
+)
 
 ZONES = [
     {"Region": "cn-wlcb", "Zone": "cn-wlcb-01", "Describe": "华北二A"},

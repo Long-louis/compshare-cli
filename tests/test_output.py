@@ -5,7 +5,6 @@ from compshare_cli.output import (
     command_suggestion,
     print_json,
     quiet_sdk_logs,
-    table_text,
 )
 
 

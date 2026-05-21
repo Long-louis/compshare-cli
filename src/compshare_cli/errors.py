@@ -2,7 +2,14 @@ from __future__ import annotations
 
 
 class CliError(Exception):
-    def __init__(self, message: str, *, type_name: str = "CliError", ret_code: int | None = None, hint: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        type_name: str = "CliError",
+        ret_code: int | None = None,
+        hint: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.type_name = type_name
@@ -18,6 +25,8 @@ class CliError(Exception):
         return {"error": error}
 
 
-MISSING_CREDENTIALS_MESSAGE = """Missing credentials. Set COMPSHARE_PUBLIC_KEY/COMPSHARE_PRIVATE_KEY or run:
-  compshare config set public-key ...
-  compshare config set private-key ..."""
+MISSING_CREDENTIALS_MESSAGE = (
+    "Missing credentials. Set COMPSHARE_PUBLIC_KEY/COMPSHARE_PRIVATE_KEY or run:\n"
+    "  compshare config set public-key ...\n"
+    "  compshare config set private-key ..."
+)
