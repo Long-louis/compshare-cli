@@ -42,22 +42,65 @@ class FakeCompShareClient:
             }
         if action == "GetCompShareInstancePrice":
             return {"RetCode": 0, "Price": 12.3}
+        if action == "CreateCompShareCustomImage":
+            return {"RetCode": 0, "CompShareImageId": "compshareImage-custom-1"}
+        if action == "DescribeCompShareCustomImages":
+            return {
+                "RetCode": 0,
+                "ImageSet": [
+                    {
+                        "CompShareImageId": "compshareImage-custom-1",
+                        "Name": "my-env",
+                        "Status": "Available",
+                        "ImageType": "Custom",
+                        "Size": 5120,
+                    }
+                ],
+            }
+        if action == "GetCompShareImageCreateProgress":
+            return {
+                "RetCode": 0,
+                "Process": 100.0,
+                "TotalDuration": "3600",
+                "RemainingDuration": "0",
+            }
+        if action == "TerminateCompShareCustomImage":
+            return {"RetCode": 0}
+        if action == "ModifyCompShareInstanceName":
+            return {"RetCode": 0}
+        if action == "ReinstallCompShareInstance":
+            return {"RetCode": 0}
+        if action == "ResizeCompShareInstance":
+            return {"RetCode": 0}
+        if action == "UpdateCompShareStopScheduler":
+            return {"RetCode": 0}
+        if action == "AttachUS3":
+            return {"RetCode": 0}
+        if action == "AttachCompShareDisk":
+            return {"RetCode": 0, "UDiskId": "udisk-1"}
+        if action == "DetachCompShareDisk":
+            return {"RetCode": 0}
+        if action == "ResizeCompShareDisk":
+            return {"RetCode": 0}
+        if action == "DeleteCompShareDisk":
+            return {"RetCode": 0}
+        if action == "DescribeCompShareGpuInventory":
+            return {
+                "RetCode": 0,
+                "InventorySet": [{"MachineType": "4090", "Zone": "cn-sh2-02", "Count": 3}],
+            }
         return {"RetCode": 0}
 
 
 def install_fake_client(monkeypatch):
     fake = FakeCompShareClient()
-    monkeypatch.setattr(
-        cli, "load_credentials", lambda: Credentials("public", "private")
-    )
+    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
     monkeypatch.setattr(cli, "CompShareClient", lambda credentials: fake)
     return fake
 
 
 def install_specific_fake_client(monkeypatch, fake):
-    monkeypatch.setattr(
-        cli, "load_credentials", lambda: Credentials("public", "private")
-    )
+    monkeypatch.setattr(cli, "load_credentials", lambda: Credentials("public", "private"))
     monkeypatch.setattr(cli, "CompShareClient", lambda credentials: fake)
     return fake
 
@@ -178,6 +221,51 @@ def test_price_create_calls_price_api(monkeypatch):
     assert fake.calls[-1][0] == "GetCompShareInstancePrice"
 
 
+def test_fake_client_supports_planned_api_actions():
+    fake = FakeCompShareClient()
+
+    response = fake.invoke("CreateCompShareCustomImage", {})
+    assert response["RetCode"] == 0
+    assert response["CompShareImageId"] == "compshareImage-custom-1"
+
+    response = fake.invoke("DescribeCompShareCustomImages", {})
+    assert response["RetCode"] == 0
+    assert "ImageSet" in response
+    assert response["ImageSet"][0]["CompShareImageId"] == "compshareImage-custom-1"
+    assert response["ImageSet"][0]["ImageType"] == "Custom"
+
+    response = fake.invoke("GetCompShareImageCreateProgress", {})
+    assert response["RetCode"] == 0
+    assert response["Process"] == 100.0
+    assert response["TotalDuration"] == "3600"
+    assert response["RemainingDuration"] == "0"
+
+    response = fake.invoke("AttachCompShareDisk", {})
+    assert response["RetCode"] == 0
+    assert response["UDiskId"] == "udisk-1"
+
+    response = fake.invoke("DescribeCompShareGpuInventory", {})
+    assert response["RetCode"] == 0
+    assert "InventorySet" in response
+    assert response["InventorySet"][0]["MachineType"] == "4090"
+    assert response["InventorySet"][0]["Zone"] == "cn-sh2-02"
+    assert response["InventorySet"][0]["Count"] == 3
+
+    for action in [
+        "TerminateCompShareCustomImage",
+        "ModifyCompShareInstanceName",
+        "ReinstallCompShareInstance",
+        "ResizeCompShareInstance",
+        "UpdateCompShareStopScheduler",
+        "AttachUS3",
+        "DetachCompShareDisk",
+        "ResizeCompShareDisk",
+        "DeleteCompShareDisk",
+    ]:
+        response = fake.invoke(action, {})
+        assert response["RetCode"] == 0
+
+
 def test_instance_list_renders_instance(monkeypatch):
     install_fake_client(monkeypatch)
 
@@ -216,14 +304,10 @@ def test_instance_lifecycle_actions(monkeypatch, command, action):
         ("reboot", "RebootCompShareInstance"),
     ],
 )
-def test_instance_lifecycle_with_explicit_zone_skips_lookup(
-    monkeypatch, command, action
-):
+def test_instance_lifecycle_with_explicit_zone_skips_lookup(monkeypatch, command, action):
     fake = install_fake_client(monkeypatch)
 
-    result = runner.invoke(
-        cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"]
-    )
+    result = runner.invoke(cli.app, ["instance", command, "uhost-1", "--zone", "cn-sh2-02"])
 
     assert result.exit_code == 0
     assert fake.calls[-1][0] == action
@@ -370,9 +454,7 @@ def test_create_command_from_payload_quotes_spaced_values():
     assert "--image-id 'my test image'" in cmd or '--image-id "my test image"' in cmd
     assert "my test image" in cmd
     # Ensure no unquoted space in the middle
-    assert (
-        "my test image" not in cmd or cmd.count("my test image") == 1
-    )  # simple presence check
+    assert "my test image" not in cmd or cmd.count("my test image") == 1  # simple presence check
     # Actually check that the command can be split safely
     import shlex
 
@@ -629,3 +711,266 @@ def test_json_error_has_hint(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["error"]["type"] == "MissingCredentials"
     assert "hint" in payload["error"]
+
+
+def test_resource_images_custom_type(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["resource", "images", "--type", "custom"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "DescribeCompShareCustomImages"
+
+
+def test_resource_gpu_inventory(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["resource", "gpu-inventory"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "DescribeCompShareGpuInventory"
+    assert fake.calls[-1][1]["Region"] == "cn-wlcb"
+    assert fake.calls[-1][1]["Zone"] == "cn-wlcb-01"
+    assert "4090" in result.stdout
+    assert "cn-sh2-02" in result.stdout
+    assert "3" in result.stdout
+
+
+def test_resource_gpu_inventory_empty_zones(monkeypatch):
+    class EmptyZonesFake(FakeCompShareClient):
+        def support_zones(self):
+            self.calls.append(("DescribeCompShareSupportZone", {}))
+            return []
+
+    install_specific_fake_client(monkeypatch, EmptyZonesFake())
+    result = runner.invoke(cli.app, ["resource", "gpu-inventory"])
+    assert result.exit_code != 0
+    assert "No zones" in result.stderr
+
+
+def test_resource_gpu_inventory_filters_gpu_type(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        [
+            "resource",
+            "gpu-inventory",
+            "--zone",
+            "cn-sh2-02",
+            "--gpu-type",
+            "4090",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "DescribeCompShareGpuInventory"
+    assert fake.calls[-1][1]["Region"] == "cn-sh2"
+    assert fake.calls[-1][1]["Zone"] == "cn-sh2-02"
+    assert fake.calls[-1][1]["MachineTypes"] == ["4090"]
+
+
+def test_instance_rename(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "rename", "uhost-1", "--name", "new-name"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ModifyCompShareInstanceName"
+    assert fake.calls[-1][1]["Name"] == "new-name"
+
+
+def test_instance_reinstall(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "reinstall",
+            "uhost-1",
+            "--image-id",
+            "compshareImage-xxx",
+            "--yes",
+        ],
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ReinstallCompShareInstance"
+    assert fake.calls[-1][1]["CompShareImageId"] == "compshareImage-xxx"
+
+
+def test_instance_reinstall_missing_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        ["instance", "reinstall", "uhost-1", "--image-id", "compshareImage-xxx"],
+    )
+    assert result.exit_code != 0
+    assert "--yes" in result.stderr
+    assert all(call[0] != "ReinstallCompShareInstance" for call in fake.calls)
+
+
+def test_instance_reinstall_missing_yes_agent(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "reinstall",
+            "uhost-1",
+            "--image-id",
+            "compshareImage-xxx",
+            "--agent",
+        ],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "ReinstallCompShareInstance" for call in fake.calls)
+
+
+def test_instance_resize(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128", "--yes"],
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ResizeCompShareInstance"
+    assert fake.calls[-1][1]["CPU"] == 32
+    assert fake.calls[-1][1]["Memory"] == 131072
+
+
+def test_instance_resize_with_gpu(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "resize",
+            "uhost-1",
+            "--cpu",
+            "16",
+            "--memory",
+            "64",
+            "--gpu",
+            "1",
+            "--gpu-type",
+            "4090",
+            "--yes",
+        ],
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ResizeCompShareInstance"
+    assert fake.calls[-1][1]["GPU"] == 1
+    assert fake.calls[-1][1]["GpuType"] == "4090"
+
+
+def test_instance_resize_missing_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app, ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128"]
+    )
+    assert result.exit_code != 0
+    assert "--yes" in result.stderr
+    assert all(call[0] != "ResizeCompShareInstance" for call in fake.calls)
+
+
+def test_instance_resize_missing_yes_agent(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        ["instance", "resize", "uhost-1", "--cpu", "32", "--memory", "128", "--agent"],
+    )
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "ResizeCompShareInstance" for call in fake.calls)
+
+
+def test_instance_set_stop_scheduler_requires_time(monkeypatch):
+    install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "set-stop-scheduler", "uhost-1"])
+    assert result.exit_code != 0
+    assert (
+        "--at" in result.stdout
+        or "--after-hours" in result.stdout
+        or "--at" in result.stderr
+        or "--after-hours" in result.stderr
+    )
+
+
+def test_instance_set_stop_scheduler(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app, ["instance", "set-stop-scheduler", "uhost-1", "--after-hours", "2"]
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "UpdateCompShareStopScheduler"
+    assert fake.calls[-1][1]["StopTime"] == "2"
+
+
+def test_instance_set_stop_scheduler_with_at(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        ["instance", "set-stop-scheduler", "uhost-1", "--at", "2025-12-31 23:59:59"],
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "UpdateCompShareStopScheduler"
+    assert fake.calls[-1][1]["StopTime"] == "2025-12-31 23:59:59"
+
+
+def test_instance_attach_us3(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1", "--yes"])
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "AttachUS3"
+
+
+def test_instance_attach_us3_missing_yes(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1"])
+    assert result.exit_code != 0
+    assert "--yes" in result.stderr
+    assert all(call[0] != "AttachUS3" for call in fake.calls)
+
+
+def test_instance_attach_us3_missing_yes_agent(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(cli.app, ["instance", "attach-us3", "uhost-1", "--agent"])
+    assert result.exit_code != 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert "--yes" in payload["summary"]
+    assert all(call[0] != "AttachUS3" for call in fake.calls)
+
+
+def test_instance_reinstall_agent_output(monkeypatch):
+    install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        [
+            "instance",
+            "reinstall",
+            "uhost-1",
+            "--image-id",
+            "compshareImage-xxx",
+            "--yes",
+            "--agent",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["cost_risk"] == "may-incur-cost"
+    assert payload["data"]["instance_id"] == "uhost-1"
+    assert payload["data"]["image_id"] == "compshareImage-xxx"
+    assert any(cmd["label"] == "Show instance" for cmd in payload["commands"])
+
+
+def test_instance_rename_with_explicit_zone_skips_lookup(monkeypatch):
+    fake = install_fake_client(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        ["instance", "rename", "uhost-1", "--name", "new-name", "--zone", "cn-sh2-02"],
+    )
+    assert result.exit_code == 0
+    assert fake.calls[-1][0] == "ModifyCompShareInstanceName"
+    assert fake.calls[-1][1]["Zone"] == "cn-sh2-02"
+    assert fake.calls[-1][1]["Region"] == "cn-sh2"
+    assert all(call[0] != "DescribeCompShareInstance" for call in fake.calls)

@@ -14,12 +14,8 @@ def test_config_set_get_and_unset(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli, "ConfigStore", lambda: store)
 
     # Set both keys
-    set_public = runner.invoke(
-        cli.app, ["config", "set", "public-key", "public-secret-1234"]
-    )
-    set_private = runner.invoke(
-        cli.app, ["config", "set", "private-key", "private-secret-5678"]
-    )
+    set_public = runner.invoke(cli.app, ["config", "set", "public-key", "public-secret-1234"])
+    set_private = runner.invoke(cli.app, ["config", "set", "private-key", "private-secret-5678"])
     get_result = runner.invoke(cli.app, ["config", "get", "--json"])
     unset_public = runner.invoke(cli.app, ["config", "unset", "public-key"])
     unset_private = runner.invoke(cli.app, ["config", "unset", "private-key"])

@@ -19,10 +19,7 @@ class Credentials:
 
 class ConfigStore:
     def __init__(self, path: Path | None = None) -> None:
-        self.path = (
-            path
-            or Path(user_config_dir("compshare-cli", "compshare")) / CONFIG_FILENAME
-        )
+        self.path = path or Path(user_config_dir("compshare-cli", "compshare")) / CONFIG_FILENAME
 
     def read(self) -> dict[str, Any]:
         if not self.path.exists():
@@ -31,9 +28,7 @@ class ConfigStore:
 
     def write(self, data: dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        self.path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     def get_value(self, key: str) -> str | None:
         value = self.read().get(key)

@@ -7,7 +7,17 @@
 ## [Unreleased]
 
 ### Changed
-- 占位：下次发版前，把这里的内容整理成新的版本段落。
+
+## [0.2.1] - 2026-05-22
+
+### Fixed
+- 恢复 `v0.2.0` 中遗漏的 CLI 扩展命令注册，重新暴露顶层 `image` 与 `disk` 命令组。
+- 恢复扩展实例运维命令：`rename`、`reinstall`、`resize`、`set-stop-scheduler`、`attach-us3`。
+- 恢复 `resource gpu-inventory` 与 `resource images --type custom`，使帮助信息与实际能力重新一致。
+- 恢复扩展功能对应测试，确保 help 与命令行为覆盖镜像、云硬盘、实例扩展运维与 GPU 库存场景。
+
+### Changed
+- 为仓库补充 `ruff` 行宽配置，确保后续 agent 改动可通过 `uv run ruff format .` 和 `uv run ruff check .` 自动完成格式化与校验。
 
 ## [0.2.0] - 2026-05-21
 

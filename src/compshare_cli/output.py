@@ -9,9 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-Risk = Literal[
-    "safe", "read-only", "may-incur-cost", "cost-incurring", "destructive", "sensitive"
-]
+Risk = Literal["safe", "read-only", "may-incur-cost", "cost-incurring", "destructive", "sensitive"]
 CostRisk = Literal[
     "none", "read-only", "may-incur-cost", "cost-incurring", "destructive", "sensitive"
 ]

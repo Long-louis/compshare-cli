@@ -60,9 +60,5 @@ class CompShareClient:
     def _raise_for_ret_code(response: dict[str, Any]) -> None:
         ret_code = response.get("RetCode", 0)
         if ret_code not in (0, None):
-            message = str(
-                response.get("Message") or f"CompShare API returned RetCode {ret_code}"
-            )
-            raise CliError(
-                message, type_name="CompShareApiError", ret_code=int(ret_code)
-            )
+            message = str(response.get("Message") or f"CompShare API returned RetCode {ret_code}")
+            raise CliError(message, type_name="CompShareApiError", ret_code=int(ret_code))
